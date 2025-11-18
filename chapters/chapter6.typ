@@ -220,7 +220,7 @@ Chiaramente, questo modello presenta un grosso svantaggio: il nodo master rappre
 === Replicazione Multi-record
 Questo approccio si ispira al modello master-slave introducento alcune modifiche. Sostanzialmente ogni nodo nel sistema può agire sia come *master* per certe informazioni, sia come *slave* per altre.
 
-Ogni nodo può accettare operazioni in *scrittura* per dati di sua competenza, e propagare le modifiche agli altri nodi. Le operazioni di *lettura* possono essere svolte su qualsiasi nodo. @fig:06_multirecord illustra questo concetto.
+Ogni nodo può accettare operazioni in *scrittura* per dati di sua competenza, e propagare le modifiche agli altri nodi. Le operazioni di *lettura* possono essere svolte su qualsiasi nodo. La figura mostrata di seguito illustra questo concetto.
 
 Per andare a sincronizzare le modifiche trai vari nodi, abbiamo a disposizione due possibili strategie:
 
@@ -228,18 +228,14 @@ Per andare a sincronizzare le modifiche trai vari nodi, abbiamo a disposizione d
 
 - *Replicazione differita*: le modifiche vengono propagate agli altri nodi dopo un certo intervallo di tempo o quando viene raggiunta una certa soglia di modifiche. Questo approccio può migliorare le prestazioni, ma può portare a situazioni di incoerenza temporanea trai nodi.
 
-#figure(
-  image("../images/ch06/10_multirecord.png", width: 100%),
-)<fig:06_multirecord>
+#image("../images/ch06/10_multirecord.png", width: 100%)
 
 === Replicazione Multi-Master
 Questo approccio, detto anche "update-anywhere", permette a qualsiasi nodo di accettare operazioni di scrittura e aggiornamento. Si tratta di un approccio che consente *maggiore disponibilità* e *tolleranza ai guasti*. Permette di avere *tempi di risposta migliorati*. Tuttavia, questo modello introduce della importanti sfide legate alla *coerenza dei dati*: spesso si rende infatti necessario implementare meccanismi di risoluzione dei conflitti per gestire situazioni in cui più nodi tentano di aggiornare gli stessi dati contemporaneamente.
 
-#figure(
-  image("../images/ch06/11_multimaster.png", width: 90%),
-)<fig:06_multimaster>
+#image("../images/ch06/11_multimaster.png", width: 90%)
 
-@fig:06_multimaster illustra il funzionamento di questa architettura. Ogni nodo può accettare operazioni di scrittura e aggiornamento, e le modifiche vengono propagate agli altri nodi. In caso di conflitti, il sistema deve essere in grado di risolverli in modo coerente.
+L'immagina presentata sopra illustra il funzionamento di questa architettura. Ogni nodo può accettare operazioni di scrittura e aggiornamento, e le modifiche vengono propagate agli altri nodi. In caso di conflitti, il sistema deve essere in grado di risolverli in modo coerente.
 
 === Guasti e Recovery
 Avendo discusso la replicazione dei dati, il prossimo passaggio è quello di andare a comprendere come i guasti vengano gestiti in un'architettura distribuita. Ipotizziamo di avere un *replication factor* di *2*. Nel caso in cui uno dei due server subisse un guasto, o fosse momentaneamente non raggiungibile, l'altro server dovrebbe essere in grado di continuare a servire le richieste di lettura e scrittura. Nel momento poi in cui il server guasto riprendesse a funzionare, sarà necessaria una *sincronizzazione* con l'altro server per portare il sistema in uno stato coerente. Questa situazione è illustrata in @fig:06_failurerecovery1.
@@ -326,3 +322,4 @@ Proprio in merito a questa forma _rilassata_ di consistenza, possiamo introdurre
 Dato il concetto di finestra di inconsistenza, possiamo introdurre la nozione di *eventual consistency* che garantisce che, in _assenza di aggiornamenti_, tutte le repliche convergeranno verso lo stesso valore dopo un certo periodo di tempo, tale periodo è appunto la finestra di inconsistenza.
 
 Uno dei metodi utilizzato per cercare di ottenere consistenza in un sistema distribuito è quello di utilizzare il concetto di *quorum*. In questo approccio, per ogni operazione di lettura o scrittura viene richiesto un numero minimo di repliche per completare l'operazione. Questo concetto potrà essere meglio approfondito all'interno del corso di sistemi distribuiti.
+

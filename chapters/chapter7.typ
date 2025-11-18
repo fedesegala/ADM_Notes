@@ -10,9 +10,9 @@
 = Architetture per Basi di Dati
 Questo capitolo dà inizio alla seconda parte del corso. Tutto ciò che tratteremo da questo momento in poi supporrà che il punto di partenza sia quello di un *java relational system*. La struttura di base di tale elemento è quella che è già stata presentata in @fig:rdbms_internal, che per completezza viene di seguito riportata.
 
-#figure(
-  image("../images/ch03/rdbms_internal.png", width: 75%),
-)
+
+#image("../images/ch03/rdbms_internal.png", width: 75%)
+
 
 La scelta di considerare questa architettura viene fatta per semplicità, e per la maggiore familiarità che si ha tipicamente con una base di dati relazionale. Tuttavia, è importante considerare che la maggioranza delle famiglie di database già presentate condivide la gran parte delle componenti con questa architettura.
 
