@@ -212,11 +212,9 @@ Si tratta di una delle architetture di replicazione più semplici. In questo mod
 - Dopo una certa quantità di tempo, il master propaga le modifiche agli *slave*
 - Le operazioni di *lettura* possono essere svolte su qualsiasi nodo, sia master che slave
 
-Chiaramente, questo modello presenta un grosso svantaggio: il nodo master rappresenta un *single point of failure*. In caso di guasto del master, il sistema non può più accettare operazioni di scrittura fino a quando un nuovo master non viene eletto. @fig:06_masterslave da una rappresentazione schematica del funzionamento di questa architettura.
-#figure(
-  image("../images/ch06/09_masterslave.png", width: 90%),
-)<fig:06_masterslave>
-
+Chiaramente, questo modello presenta un grosso svantaggio: il nodo master rappresenta un *single point of failure*. In caso di guasto del master, il sistema non può più accettare operazioni di scrittura fino a quando un nuovo master non viene eletto. L'immagine presentata di seguito da una rappresentazione schematica del funzionamento di questa architettura.
+#align(center)[
+  #image("../images/ch06/09_masterslave.png", width: 90%)]
 === Replicazione Multi-record
 Questo approccio si ispira al modello master-slave introducento alcune modifiche. Sostanzialmente ogni nodo nel sistema può agire sia come *master* per certe informazioni, sia come *slave* per altre.
 
@@ -228,13 +226,14 @@ Per andare a sincronizzare le modifiche trai vari nodi, abbiamo a disposizione d
 
 - *Replicazione differita*: le modifiche vengono propagate agli altri nodi dopo un certo intervallo di tempo o quando viene raggiunta una certa soglia di modifiche. Questo approccio può migliorare le prestazioni, ma può portare a situazioni di incoerenza temporanea trai nodi.
 
-#image("../images/ch06/10_multirecord.png", width: 100%)
+#align(center)[#image("../images/ch06/10_multirecord.png", width: 100%)]
 
 === Replicazione Multi-Master
 Questo approccio, detto anche "update-anywhere", permette a qualsiasi nodo di accettare operazioni di scrittura e aggiornamento. Si tratta di un approccio che consente *maggiore disponibilità* e *tolleranza ai guasti*. Permette di avere *tempi di risposta migliorati*. Tuttavia, questo modello introduce della importanti sfide legate alla *coerenza dei dati*: spesso si rende infatti necessario implementare meccanismi di risoluzione dei conflitti per gestire situazioni in cui più nodi tentano di aggiornare gli stessi dati contemporaneamente.
 
-#image("../images/ch06/11_multimaster.png", width: 90%)
 
+#align(center)[#image("../images/ch06/11_multimaster.png", width: 90%)
+]
 L'immagina presentata sopra illustra il funzionamento di questa architettura. Ogni nodo può accettare operazioni di scrittura e aggiornamento, e le modifiche vengono propagate agli altri nodi. In caso di conflitti, il sistema deve essere in grado di risolverli in modo coerente.
 
 === Guasti e Recovery
