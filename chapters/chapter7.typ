@@ -225,11 +225,14 @@ L'utilizzo di questi record identifier è particolarmente utile nel momento in c
 
 Quello appena presentato, chiamato *riferimento diretto*, non è però il modo migliore per fare riferimento a record. Immaginiamo infatti di star indicizzando un insieme di record che si possono trovare su più pagine, e l'indice punta al riferimento diretto di ogni record. Se andiamo ad eliminare dei record in una pagina potremmo potremmo a un certo punto aver bisogno di _deframmentare_ la pagina per recuperare spazio. In questo caso, i riferimenti diretti all'interno dell'indice andrebbero a puntare a posizioni errate. Ricalcolare l'indice sarebbe estremamente costoso.
 
-Per questo motivo si preferisce mantenere un livello di *indirezione* tra l'indice e il record vero e proprio. In questo caso l'indice punterà ad un elemento dello *slot array* che sarà una struttura presenta a livello di pagina. Sarà poi compito dello slot array tenere traccia del riferimento diretto (che in termini pratici, consiste solamente nell'_offset_) di ogni record. In questo modo, nel momento in cui andiamo a deframmentare la pagina, sarà sufficiente aggiornare lo slot array senza dover toccare l'indice.
+Per questo motivo si preferisce mantenere un livello di *indirezione* tra l'indice e il record vero e proprio. In questo caso l'indice punterà ad un elemento dello *slot array* che sarà una struttura presenta a livello di pagina. Sarà poi compito dello slot array tenere traccia del riferimento diretto (che in termini pratici, consiste solamente nell'_offset_) di ogni record. In questo modo, nel momento in cui andiamo a deframmentare la pagina, sarà sufficiente aggiornare lo slot array senza dover toccare l'indice. @fig:0704_slotarray mostra schematicamente la differenza tra l'approccio indiretto e indiretto.
 
-Lo slot array viene posizionato tipicamente alla fine della pagina, in modo da poter crescere verso l'alto. Se andassimo infatti a posizionare questo elemento all'inizio della pagina, ogni elemento aggiunto potrebbe farlo crescere di dimensionalità, comportando una nuova modifica di tutti gli offset.
 
 #figure(
   image("../images/ch07/04_slot_array.png", width: 80%),
   caption: "a) Rappresentazione di utilizzo di riferimenti diretti per i record all'interno di una pagina. b) Rappresentazione di utilizzo di uno slot array per i record all'interno di una pagina.",
-)<fig:0704_pagesttructure>
+)<fig:0704_slotarray>
+
+#remark[
+  Lo slot array viene posizionato tipicamente alla fine della pagina, in modo da poter crescere verso l'alto. Se andassimo infatti a posizionare questo elemento all'inizio della pagina, ogni elemento aggiunto potrebbe farlo crescere di dimensionalità, comportando una nuova modifica di tutti gli offset.
+]
