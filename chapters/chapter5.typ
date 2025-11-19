@@ -328,7 +328,7 @@ Questa sezione va velocemente a riassumere i concetti fondamentali alla base di 
 L'immagine che segue mostra un esempio di un property graph model che contiene molteplici relazioni tra nodi, molte proprietà e tipi di nodi e relazioni diversi:
 
 #align(center)[
-  #image("../images/ch05/05_neo4j_propgraph.png", width: 65%)
+  #image("../images/ch05/05_neo4j_propgraph.png", width: 60%)
 ]
 
 L'idea alla base di Neo4j è quella di fornire uno strumento il più intuitivo e vicino possibile a ciò che un utente si aspetta quando pensa a un grafo.
@@ -337,7 +337,7 @@ L'idea alla base di Neo4j è quella di fornire uno strumento il più intuitivo e
 Dato un grafo abbiamo bisogno di un modo per poter interrogare i dati in esso contenuti. Neo4j fornisce un linguaggio di query chiamato *Cypher*, che è stato progettato specificamente per lavorare con grafi. Si tratta di un linguaggio *dichiarativo* che pone alla sua base il concetto di *pattern matching* sui grafi, in maniera simile a quello che facciamo con le _espressioni regolari_ sui testi. @fig:05_cypher_patternmatching mostra un esempio di come possiamo rappresentare dei pattern in Cypher.
 
 #figure(
-  image("../images/ch05/05_cypher_patmatching.png", width: 90%),
+  image("../images/ch05/05_cypher_patmatching.png", width: 80%),
   caption: "Esempio di pattern matching in Cypher per trovare nodi e relazioni specifiche all'interno di un grafo.",
 )<fig:05_cypher_patternmatching>
 
