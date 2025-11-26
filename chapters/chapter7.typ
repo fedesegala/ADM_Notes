@@ -334,7 +334,7 @@ Pensiamo ad esempio alla ricerca binaria in cui andiamo normalmente a scegliere 
 
 #pagebreak()
 
-==== Algoritmi di Ricerca e Costi
+=== Algoritmi di Ricerca e Costi
 Di seguito andiamo a presentare varie possibilità per implementare la ricerca di un singolo valore all'interno di un file sequenziale andandone a valutare i costi associati.
 
 ===== Ricerca Binaria
@@ -432,3 +432,78 @@ In generale non abbiamo un vincitore assoluto tra i due approcci, ognuno ha i su
 
 - il modello *seriale* è ideale nel caso in cui abbiamo bisogno di effettuare tanti *inserimenti*, ma è pessimo nel caso in cui dobbiamo effettuare ricerche molto piccole
 - il modello *sequenziale* è ideale nel caso in cui abbiamo bisogno di effettuare tante *ricerche*, ma è pessimo nel caso in cui dobbiamo effettuare tanti inserimenti
+
+== Problemi di Ordinamento
+Come già noto, l'ordinamento di dati è uno dei problemi più classici ed importanti nell'ambito dell'informatica. Anche nelle basi di dati si tratta di un'operazione molto comune: spesso infatti capita che sia necessario ordinare i dati in base a certi attributi per poter rispondere a query specifiche.
+
+Altri casi molto comuni in cui è necessario ordinare i dati sono i seguenti:
+
+- unione di dati provenienti da più tabelle
+- eliminazione di duplicati
+- raggruppamenti rispetto a determinate chiavi
+- operazioni insiemistiche (unioni, intersezioni, differenze)
+
+
+Seppur siano già state viste numerose tecniche di ordinamento in corsi precedenti, all'interno di un DBMS l'algoritmo di ordinamento maggiormente utilizzato  utilizzato è *external merge-sort*. Questo algoritmo funziona in due fasi:
+
+- *ordinamento*: crea piccoli ordinamenti detti *run*
+- *merge*: fonde più run ordinati in un unico file ordinato
+
+Di seguito andiamo a vedere cosa succede ad ogni passo dell'algoritmo.
+
+==== Fase di ordinamento
+All'interno del *buffer* vengono ordinate $B$ (dimensione del buffer) pagine per volta tramite un algoritmo di *sort interno* e scrive il risultato su disco come un *run* ordinato. Questo processo viene ripetuto fino a quando tutte le pagine del file sono state lette e scritte su disco come run ordinate. Al termine del sorting otteniamo $n$ run dove:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    n = ceil((N_("page")(R)) / B)
+  $,
+)
+
+==== Fase di merge
+In questa avviene l'ordinamento vero e proprio. Sappiamo che abbiamo un buffer di $B$ pagine a disposizione, che è uno spazio limitato rispetto a quello effettivamente necessario. Per superare questo limite andremo a considerare $Z = B-1$ run. Per ognuna di queste run andremo a tenere all'interno del buffer una pagina, riservando l'ultima pagina per scrivere il risultato.
+
+In questo modo, ad ogni passo andremo a scegliere il record più piccolo tra quelli nelle $Z$ pagine, scrivendolo nella pagina di output. Man mano che la pagina di output si riempie questa viene scritta su disco e andrà a dar forma al nuovo file ordinato, nel frattempo le $Z$ pagine vengono riempite progressivamente.
+
+Questo processo verrà ripetuto per $Z / n$ fasi di merge, tutti i risultati prodotti saranno *intermedi* e verranno fusi nuovamente fino a quando non rimarrà un unico file ordinato.
+
+#figure(
+  image("../images/ch07/06_zmergesort.png", width: 80%),
+  caption: "Rappresentazione schematica dell'algoritmo di external merge-sort con dimensione del buffer di 3 pagine, e pagine di dimensione 2",
+)<fig:0706_zmergesort>
+
+@fig:0706_zmergesort mostra schematicamente il funzionamento di external merge sort. Si noti come dal momento che il buffer può contenere 3 pagine di dimensione 2, allora $Z=2$. Non a caso il risultato della fase di sort consiste in 4 run ordinate di 3 pagine ciascuna.
+
+==== Costo di External Merge-Sort
+Andiamo ora a vedere quali sono i costi associati all'algoritmo di external merge-sort. In generale questo costo è estremamente dipendente dal numero di volte che i dati vengono spostati tra il buffer e la memoria permanente.
+
+Per quanto riguarda l'algortmo in sé, sappiamo che questo può essere visto come diviso in un singolo passo di ordinamento e un certo numero $k$ di passi di merge. Indipendentemente dal tipo di operazione effettuata, ogni passo comporta la lettura e la scrittura di tutte le pagine del file. Definiamo quindi il costo di singolo passo $C_("step") = 2 dot N_("page")(R)$.
+
+Il costo totale dell'algoritmo sarà dunque dato da:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $C_("tot") = (1 + k) dot C_("step") = (1 + k) dot 2 dot N_("page")(R)$,
+)
+
+A questo punto non resta che andare a investigare il numero di passi di merge $k$. Sappiamo che il numero di run iniziali $S$ è strettamente legato alla dimensione del buffer $B$: $S = ceil(N_("page")(R) / B)$. In ogni passo di merge, possiamo fondere $Z = B-1$ run, riducendo dunque il numero di run di un fattore  $Z$: $k = ceil(log_("Z") S) = ceil(log_("B-1") ceil(N_("page")(R) / B))$. Possiamo dunque riscrivere il costo totale come:
+
+#math.equation(
+  block: true,
+  numbering: "(1)",
+  $
+    2 dot N_("page")(R) dot (1 + ceil(log_Z S))
+  $,
+)<eq:cost_zmergesort>
+
+Nello specifico, nel caso in cui avessimo $N_("page")(R) < B^2$ allora avremmo bisogno di una sola fusione; questo dal momento che $S = N_("page")(R) / B < B$. In questo caso il costo totale si ridurrebbe a $C_("tot") = 4 dot N_("page")(R)$.
+
+Di seguito vediamo alcuni benchmark che mostrano il costo di external merge-sort in funzione del numero di pagine avendo fissati $B=3$, $Z=2$ e la differenza rispetto ad avere $B=257$ e conseguentemente un valore di $Z=256$.
+
+#figure(
+  image("../images/ch07/07_zmergecosts1.png", width: 100%),
+  caption: "Benchmark di external merge-sort in funzione del numero di pagine per due diverse dimensioni del buffer: a sinistra B=3, a destra B=257",
+)<fig:0707_zmergesort_benchmark>
