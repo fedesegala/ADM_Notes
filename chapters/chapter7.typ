@@ -43,6 +43,8 @@ Vedremo inoltre come questo stack di componenti sia molto simile nel concetto al
 == Persistent Memory Manager
 Come già menzionato in qualche capitolo precedente il principale ruolo del gestore della memoria persistente è quello di fornire un'*astrazione linearmente indirizzabile* della memoria, nascondendo ai livelli superiori l'effettiva struttura della memoria.
 
+È importante andare a vedere come la memoria secondaria sia strutturata, questa informazione sarà estremamente utile per comprendere anche le sezioni successive. Possiamo dire in generale che la memoria permanente di una DBMS è organizzata a livello logico come un insieme di 'database', ognuno di questi si può vedere come un *insieme di file*, che a loro volta sono organizzati in *pagine* linearmente indirizzabili
+
 Tipicamente vengono utilizzati più *livelli di memoria* in maniera molto simile a quanto accade all'interno di un normale calcolatore. A taglie di memoria più grande, corrisponderà maggior latenza, mentre man mano che si diminuisce la capacità si va a migliorare il tempo di accesso ai dati. Tipicamente i livelli che troviamo in ambienti production scale:
 
 - _glacier storage_: utilizzati per storage di dati a lunghissimo termine
@@ -236,3 +238,197 @@ Per questo motivo si preferisce mantenere un livello di *indirezione* tra l'indi
 #remark[
   Lo slot array viene posizionato tipicamente alla fine della pagina, in modo da poter crescere verso l'alto. Se andassimo infatti a posizionare questo elemento all'inizio della pagina, ogni elemento aggiunto potrebbe farlo crescere di dimensionalità, comportando una nuova modifica di tutti gli offset.
 ]
+
+== Strutture per File Management
+Come già noto dalla sezione del permanent memory manager, sappiamo che un *file* si può vedere dal punto di vista logico come un *insieme di pagine*.
+
+Fino a questo momento ci siamo sempre concentrati sulla gestione dei record all'interno di una pagina. Abbiamo imparato come leggere dei record e come andarli a memorizzare all'interno di una pagina, dando per assunto di conoscere la pagina in cui i record sono memorizzati. Nella prossima sezione andremo a concentrarci su come venga gestito lo spazio all'interno di un file, che ricordiamo essere un insieme di pagine:
+
+- come viene *scelto* dove memorizzare un nuovo record
+- come *modificare* il contenuto di un *file* per riciclare memoria
+- come *compattare* lo spazio all'interno di un *file*
+
+
+In generale il tema di maggiore importanza è capire come *scegliere* una pagina sufficientemente capiente da poter memorizzare un nuovo record; sempre che questa pagina esista, in caso contrario sarà necessario allocare una nuova pagina all'interno del file.
+
+In questa sezione andremo a vedere diversi approcci per la gestione dell'allocazione dello spazio all'interno di un file: _seriale_, _sequenziale_, _associativo_ (per attributi unici o non unici).
+
+==== Modello di Costo
+Prima di andare a vedere i vari modelli di allocazione dello spazio all'interno di un file, è importante definire un *modello di costo* che ci consenta di valutare l'efficacia dei vari approcci. Andremo a tenere in considerazione i seguenti aspetti:
+
+- *spazio utilizzato*: quantità di spazio effettivamente utilizzato per memorizzare i record, specialmente nel caso in cui venga utilizzata memoria ausiliaria
+- *performance*: numero di operazioni read/write necessario per eseguire determinate operazioni come inserimento, aggiornamento, cancellazione e ricerca
+
+All'interno di questo modello di costo, considereremo un file $R$ con $N_("rec")$ record di lunghezza $L_r$ e un numero di pagine $N_("page")$ di dimensione $D_("page")$.
+
+#remark[
+  Si noti come tutti i parametri definiti nell'ultimo paragrafo siano *necessari* per poter valutare l'efficacia del nostro modello di allocazione.
+]
+
+In base alle informazioni fornite dal nostro modello di costo, avremo la possibilità di comprendere quale sia il modello di allocazione più adatto alle nostre esigenze. Tipicamente l'*unità di misura* tramite cui esprimiamo il costo è il numero di *accessi a pagina* necessari per eseguire una certa operazione (sia in lettura, sia in scrittura).
+
+=== Modello Seriale e Sequenziale
+È stato scelto di raggruppare questi due approcci per l'organizzazione dei file in quanto condividono molte caratteristiche. La loro peculiarità consiste nel fatto che entrambi gli approcci *non utilizzano strutture dati ausiliarie*, la memoria viene utilizzata solamente per tenere traccia delle pagine che compongono il file.
+
+La differenza sostanziale trai due approcci consiste nel fatto che il modello *seriale* (_heap file_) non suppone alcun ordinamento dei valori all'interno del file, mentre il modello *sequenziale* suppone che i record siano memorizzati in ordine in base al valore di uno o più attributi.
+
+==== Organizzazione Seriale
+Il modello _heap file_ è una tecnica molto semplice ed efficiente in termini della memoria utilizzata. Il problema è che nel caso di file molto grandi potrebbe risultare in performance scadenti. È ottimale nel caso invece in cui i file gestiti siano di piccole dimensioni. Si tratta dell'organizzazione per file che viene utilizzata di default nella maggior parte dei DBMS. Di seguito andiamo a vedere come vengono gestite le varie operazioni sui file:
+
+- *ricerca* di un singolo valore per un attributi: è necessario effettuare una scansione sequenziale fino a quando non viene trovato il valore cercato, o fino a quando la fine della lista non viene raggiunta
+- *ricerca* di un *intervallo* di valori: similmente al caso precedente è richiesta una scansione completa. La differenza rispetto a prima è che abbiamo un 'stop criteria' differente, dal momento che dobbiamo continuare a leggere fino a quando non superiamo il valore massimo dell'intervallo
+- l'*inserimento* di un nuovo record avviene semplicemente aggiungendo il record alla fine dell'ultimo file
+- la *cancellazione* e l'*aggiornamento* di un record vengono effettuate tramite un'operazione di ricerca del record e di _riscrittura_.
+
+==== Costi del Modello Seriale
+Di seguito andiamo ad illustrare i vari costi associati all'utilizzo di una architettura di questo genere. In generale, in termini di *spazio* avremo bisogno di una quantità espressa dall'equazione di seguito:
+
+#math.equation(
+  block: true,
+  numbering: "(1)",
+  $
+    N_("page")(R) = N_("rec")(R) dot L_r / D_("page")
+  $,
+)<eq:space_seriale>
+
+#remark[Il valore di $L_r$ è tipicamente esatto, nel caso in cui abbiamo a che fare con valori provenienti da un dominio 'statico', nel caso in cui avessimo valori a lunghezza variabile, il suo sarà una media delle varie dimensioni memorizzate fino ad un certo punto.  ]
+
+Possiamo notare come in @eq:space_seriale il costo in termini spazio sia unicamente dipendente dall'informazione memorizzata all'interno di un file. Andiamo ora ad osservare il costo in termini di numero accessi alle pagine per le varie operazioni:
+
+- Per quanto riguarda *cancellazione* e *aggiornamento* avremo bisogno di un numero di accessi alle pagine pari a quello necessario per una ricerca più un accesso in scrittura per riscrivere il record: $C_d = C_u = C_s + 1$
+
+Il motivo per cui il costo di una cancellazione di valore è uguale a quello di un aggiornamento è dovuto al fatto che, per evitare di dover spostare tutti i record cancellandone uno, si preferisce sovrascrivere il record o impostare un flag di cancellazione. In questo modo il costo risulta essere identico.
+
+- per l'*inserimento* di un record avremo già conoscenza riguardo a quale sia l'ultima pagina del file, e potremo quindi effettuare una lettura della pagina di interesse e un conseguente inserimento: $C_i = 2$
+
+- per la *ricerca* di un *singolo valore* per un attributo: $C_s approx ceil(N_("page")(R) / 2)$ mediamente nel caso in cui il valore sia presente, in caso contrario avremo $C_s = N_("page")(R)$
+
+- per la *ricerca* di un *intervallo* di valori: $C_r = N_("page")(R)$, non essendo infatti i valori ordinati, si rende necessario scorrere l'intero file per essere sicuri di aver trovato tutti i valori nell'intervallo.
+
+==== Organizzazione Sequenziale
+L'idea alla base dell'organizzazione sequenziale è quella di mantenere i record ordinati rispetto ad una chiave $K$ e memorizzarli in memoria continua. Questo principio consente di abbassare notevolmente i costi di ricerca, sia per un singolo valore, sia per un intervallo di valori.
+
+Lo svantaggio principale di questo approccio è legato al *mantenimento dell'ordinamento*. Questo comporta infatti che ogni inserimento e aggiornamento comporti una riorganizzazione del file, che potrebbe essere estremamente costosa. Nello specifico, le operazioni di aggiornamento sono ancora più complicate, dal momento che possono o non possono cambiare l'organizzazione del file a seconda del valore della chiave $K$.
+
+Per tutte queste ragioni, l'utilizzo di questo modello di organizzazione, sebbene interessante dal punto di vista teorico, non viene praticamente mai utilizzato nei DBMS moderni. L'unico caso in cui risulti utile è quello in cui il file venga utilizzato in sola lettura, come per esempio nel caso di *data warehousing*.
+
+===== Ricerca di un singolo valore
+Nel momento in cui dobbiamo andare a cercare una determinata chiave $k$ all'interno di un file sequenziale, possiamo sfruttare l'ordinamento di questo. A livello teorico possiamo utilizzare tutti i possibili algoritmi già noti per la ricerca in liste ordinate, come per esempio la *ricerca binaria*.
+
+#remark[Si rende necessario tenere in considerazione che i dati vengono trasferiti *una pagina alla volta* (o a blocchi di pagine). Questo porta ci porta ad adattare i nostri algoritmi di ricerca.]
+
+Pensiamo ad esempio alla ricerca binaria in cui andiamo normalmente a scegliere un '_pivot_' e sulla base del valore di questo andiamo a decidere se cercare nella metà sinistra o destra della lista di valori. In questo caso non abbiamo più soltanto un 'pivot', ma ci servirà utilizzare '*pagine pivot*':
+
+- Scegliamo una '_pagina pivot_' (tipicamente al centro del file) $P_i$, con $1 <= i <= N_("page")(R)$
+
+- Prendiamo $m_i, M_i$ come rispettivamente il valore minimo e massimo dell'attributo cercato nella pagina $P_i$
+
+
+- Se $m_i <= k <= M_i$ allora abbiamo trovato la pagina di nostro interesse e possiamo cercare $k$ al suo interno, in caso contrario se $k < m_i$ allora andiamo a cercare nella metà sinistra del file, altrimenti andiamo a cercare nella metà destra del file.
+
+- Se l'intervallo di pagine da cercare è vuoto, allora il valore non è presente nel file
+
+#remark[
+  Si noti come il costo di ricerca di un valore all'interno di una pagina una volta che questa è stata trovata si può considerare *trascurabile*, dal momento che il costo totale (in termini di tempo e latenza) sarà dominato dal numero di accessi alle pagine.
+]
+
+#pagebreak()
+
+==== Algoritmi di Ricerca e Costi
+Di seguito andiamo a presentare varie possibilità per implementare la ricerca di un singolo valore all'interno di un file sequenziale andandone a valutare i costi associati.
+
+===== Ricerca Binaria
+Come noto da precedenti corsi di algoritmi, la ricerca binaria, che va a scegliere il '*pivot*' al *centro* dell'*intervallo di ricerca* in cui cercare produce un costo medio dato da:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    C_s = log_2(N_("page")(R))
+  $,
+)
+
+Sebbene in un normale algoritmo di ricerca questo costo sia accettabile se non addirittura buono, in un contesto come il nostro dobbiamo fare di meglio. Infatti nel caso in cui avessimo 400k pagine, il costo medio sarebbe di circa 19 accessi a pagina. Questo costo è ancora troppo elevato per essere accettabile in un DBMS.
+
+===== Ricerca Interpolata
+Un miglioramento rispetto alla ricerca binaria può essere ottenuto tramite l'utilizzo della *ricerca interpolata*. L'idea è quella di scegliere il *pivot* in maniera più intelligente, andando a stimare la posizione del valore cercato all'interno del valore di ricerca.
+
+L'idea di base è che le chiavi siano distribuite in maniera all'incirca *uniforme* nell'intervallo di ricerca. In questo modo possiamo stimare la _probabilità che una chiave sia minore di un certo $k$_ tramite la seguente formula:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    p_k = (k - k_("min")) / (k_("max") - k_("min"))
+  $,
+)
+
+Dato il valore di $p_k$ possiamo stimare la posizione della pagina pivot tramite la seguente formula:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    P_i = ceil(P_1 + p_k dot (P_(N_("page")(R)) - P_1))
+  $,
+)
+
+In sostanza $p_k$, supponendo che le chiavi siano distribuite uniformemente, ci consente di scalare il valore di $k$ all'interno dell'intervallo di ricerca. Utilizzando questa tecnica i costi saranno i seguenti:
+
+- $C_s = O(log_2 log_2 N_("page")(R))$ nel caso 'medio'
+- $C_s = O(N_("page")(R))$ nel caso peggiore, tuttavia questo caso è molto raro
+
+Utilizzando ricerca interpolata nel caso di 400k pagine avremo un costo medio di circa 4 accessi a pagina, che è decisamente migliore rispetto alla ricerca binaria.
+
+===== Altri costi per la ricerca interpolata
+Ipotizzando di andare ad utilizzare la ricerca interpolata, andiamo a vedere quali sono gli altri costi associati alle altre operazioni sui file:
+
+- Nel caso di *ricerca* di un *intervallo* ($k_1 <= k <= k_2$), ipotizzando di avere chiave uniformemente distribuite nell'intervallo $[k_("min"), k_("max")]$ avremo quanto segue:
+
+  #math.equation(
+    block: true,
+    numbering: none,
+    $
+      f_s = (k_2 - k_1) / (k_("max") - k_("min") )
+    $,
+  )
+  che corrisponde alla frazione totale delle pagine coperte dall'intervallo di ricerca rispetto al totale, questo elemento prende il nome di *fattore di selettività*. Dato questo fattore di selettività, il costo totale si può esprimere come:
+  #math.equation(
+    block: true,
+    numbering: none,
+
+    $
+      coleq(#orange, ceil(log_2 N_("page")(R))) + coleq(#blue, ceil(f_s dot N_("page")(R))) - coleq(#green, 1)
+    $,
+  )
+  dove il primo membro della somma corrisponde al #text(fill: orange)[costo per la ricerca della prima pagina] dell'intervallo, mentre il secondo membro corrisponde al #text(fill: blue)[costo per la lettura di tutte le pagine successive] nell'intervallo. Chiaramente andiamo a sottrarre 1 in quanto la #text(fill: green)[prima pagina è già stata letta].
+
+- Nel caso di *inserimento*, dobbiamo innanzitutto individuare la pagina corretta in cui inserire il nuovo record. Questo comporta la scansione di tutte le pagine precedenti rispetto a quella di destinazione. Nel caso peggiore, quando tutte le pagine sono completamente occupate, è necessario spostare i record verso le pagine successive. Tuttavia, siccome il costo che ci interessa misurare è quello in termini di *accessi a pagina*, è sufficiente considerare lo spostamento di *un solo record per pagina* verso la pagina successiva, per ciascuna delle pagine che seguono quella di inserimento. Il costo totale dell’operazione di inserimento è quindi dato da:
+  #math.equation(
+    block: true,
+    numbering: none,
+    $
+      C_i =
+      coleq(#orange, C_s)
+      +
+      coleq(#blue, N_("page")(R))
+      +
+      coleq(#green, 1)
+    $,
+  )
+  dove, il primo termine rappresenta il costo per la #text(fill: orange)[ricerca della pagina di inserimento], il secondo termine rappresenta il costo per la #text(fill: blue)[scansione delle pagine successive per lo spostamento dei record], e l'ultimo termine rappresenta il costo per la #text(fill: green)[scrittura del nuovo record nella pagina di destinazione].
+
+- Nel caso di *cancellazione*, andiamo a considerare soltanto il caso di cancellazione *logica*, possiamo dire che questo ha costo come nel caso seriale: $C_d = C_s + 1$.
+
+==== Confronto tra Modello Seriale e Sequenziale
+Di seguito andiamo a presentare una tabella riassuntiva che confronta i due modelli di organizzazione per file appena presentati in termini dei costi a loro associati.
+
+#figure(
+  image("../images/ch07/05_sequential_serial_compare.png", width: 80%),
+  caption: "Confronto tra modello seriale e sequenziale",
+)
+
+In generale non abbiamo un vincitore assoluto tra i due approcci, ognuno ha i suoi pro e contro:
+
+- il modello *seriale* è ideale nel caso in cui abbiamo bisogno di effettuare tanti *inserimenti*, ma è pessimo nel caso in cui dobbiamo effettuare ricerche molto piccole
+- il modello *sequenziale* è ideale nel caso in cui abbiamo bisogno di effettuare tante *ricerche*, ma è pessimo nel caso in cui dobbiamo effettuare tanti inserimenti

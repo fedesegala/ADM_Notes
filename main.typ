@@ -59,6 +59,9 @@
 #include "chapters/chapter7.typ"
 #pagebreak()
 
+
+
+#pagebreak()
 #outline(
   title: "Indice delle figure",
   target: figure.where(kind: image),

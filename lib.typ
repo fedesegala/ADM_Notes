@@ -269,3 +269,5 @@
     ..items
   )
 }
+
+#let coleq(color, x) = text(fill: color)[$#x$]
