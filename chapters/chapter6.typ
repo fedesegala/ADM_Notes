@@ -16,6 +16,26 @@
   }
 }
 
+// Numerazione delle figure per capitolo
+#set figure(numbering: num => {
+  let chapter = counter(heading.where(level: 1)).get().first()
+  numbering("1.1", chapter, num)
+})
+
+// Numerazione delle equazioni per capitolo
+#set math.equation(numbering: num => {
+  let chapter = counter(heading.where(level: 1)).get().first()
+  numbering("(1.1)", chapter, num)
+})
+
+// Resetta i contatori ad ogni nuovo capitolo
+#show heading.where(level: 1): it => {
+  counter(figure.where(kind: image)).update(0)
+  counter(figure.where(kind: table)).update(0)
+  counter(math.equation).update(0)
+  it
+}
+
 = Gestione di Dati Distribuiti
 Dopo aver introdotto varie famiglie di basi di dati, e aver visto come in moltissimi contesti, la loro nascita è dovuta al fatto di permettere una scalabilità orizzontale, andremo ora a vedere come effettivamente queste basi di dati permettono di gestire *dati distribuiti* su diversi nodi.
 

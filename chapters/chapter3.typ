@@ -14,6 +14,25 @@
     block(counter(heading).display() + " " + it.body)
   }
 }
+// Numerazione delle figure per capitolo
+#set figure(numbering: num => {
+  let chapter = counter(heading.where(level: 1)).get().first()
+  numbering("1.1", chapter, num)
+})
+
+// Numerazione delle equazioni per capitolo
+#set math.equation(numbering: num => {
+  let chapter = counter(heading.where(level: 1)).get().first()
+  numbering("(1.1)", chapter, num)
+})
+
+// Resetta i contatori ad ogni nuovo capitolo
+#show heading.where(level: 1): it => {
+  counter(figure.where(kind: image)).update(0)
+  counter(figure.where(kind: table)).update(0)
+  counter(math.equation).update(0)
+  it
+}
 
 = Column Stores
 Fino a questo momento abbiamo di varie tipologie di basi, ovvero modelli relazionali, key-value stores e document stores. Tra queste tipologie i modello NoSQL si rendono necessari nel momento in cui non serve più garantire le proprietà ACID, ma si preferisce garantire efficienza e velocità di accesso ai dati.

@@ -16,6 +16,27 @@
   }
 }
 
+// Numerazione delle figure per capitolo
+#set figure(numbering: num => {
+  let chapter = counter(heading.where(level: 1)).get().first()
+  numbering("1.1", chapter, num)
+})
+
+// Numerazione delle equazioni per capitolo
+#set math.equation(numbering: num => {
+  let chapter = counter(heading.where(level: 1)).get().first()
+  numbering("(1.1)", chapter, num)
+})
+
+// Resetta i contatori ad ogni nuovo capitolo
+#show heading.where(level: 1): it => {
+  counter(figure.where(kind: image)).update(0)
+  counter(figure.where(kind: table)).update(0)
+  counter(math.equation).update(0)
+  it
+}
+
+
 
 = Architetture per Basi di Dati
 Questo capitolo dà inizio alla seconda parte del corso. Tutto ciò che tratteremo da questo momento in poi supporrà che il punto di partenza sia quello di un *java relational system*. La struttura di base di tale elemento è quella che è già stata presentata in @fig:rdbms_internal, che per completezza viene di seguito riportata.

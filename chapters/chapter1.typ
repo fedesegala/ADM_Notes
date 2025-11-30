@@ -17,6 +17,26 @@
   }
 }
 
+// Numerazione delle figure per capitolo
+#set figure(numbering: num => {
+  let chapter = counter(heading.where(level: 1)).get().first()
+  numbering("1.1", chapter, num)
+})
+
+// Numerazione delle equazioni per capitolo
+#set math.equation(numbering: num => {
+  let chapter = counter(heading.where(level: 1)).get().first()
+  numbering("(1.1)", chapter, num)
+})
+
+// Resetta i contatori ad ogni nuovo capitolo
+#show heading.where(level: 1): it => {
+  counter(figure.where(kind: image)).update(0)
+  counter(figure.where(kind: table)).update(0)
+  counter(math.equation).update(0)
+  it
+}
+
 = Introduzione
 Le basi di dati sono elementi fondamentali in molti aspetti della tecnologia quotidiana. Ogni giorno infatti, è prodotta, memorizzata e elaborata una *immensa quantità di dati*.
 

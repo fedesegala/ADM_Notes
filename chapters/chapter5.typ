@@ -15,6 +15,27 @@
   }
 }
 
+// Numerazione delle figure per capitolo
+#set figure(numbering: num => {
+  let chapter = counter(heading.where(level: 1)).get().first()
+  numbering("1.1", chapter, num)
+})
+
+// Numerazione delle equazioni per capitolo
+#set math.equation(numbering: num => {
+  let chapter = counter(heading.where(level: 1)).get().first()
+  numbering("(1.1)", chapter, num)
+})
+
+// Resetta i contatori ad ogni nuovo capitolo
+#show heading.where(level: 1): it => {
+  counter(figure.where(kind: image)).update(0)
+  counter(figure.where(kind: table)).update(0)
+  counter(math.equation).update(0)
+  it
+}
+
+
 = Graph Databases
 
 Nel corso di questo capitolo andremo ad affrontare basi di dati organizzate come *grafo*. Nella prima parte andremo a vedere i concetti fondamentali, per poi passare a vedere una delle implementazioni più diffuse: *Neo4j*.
