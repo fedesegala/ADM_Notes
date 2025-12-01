@@ -66,3 +66,192 @@ Il motivo per cui questo approccio è detto *statico* è che una volta che un re
 - tenere in considerazione la *capacità di una pagina*
 
 #warning-box[È importante tenere in considerazione che questo approccio non è progettato per ricercare valori all'interno di un *intervallo*; non esiste infatti un meccanismo di ordinamento dei valori per cui non è possibile effettuare in maniera efficiente ricerche di questo tipo. ]
+
+=== Funzione di Hashing
+La funzione di hashing $H$ è il cuore di questa organizzazione. Si dice che la funzione di hash è *uniforme* nel momento in cui tutti gli indirizzi sono prodotti in modo uniforme nell'intervallo $[0, M-1]$. Si dice che due chiavi $k_1$ e $k_2$ sono *sinonimi* quando $H(k_1) = H(k_2)$, ossia, producono una _collisione_.
+
+Se il numero di collisioni su una pagina è maggiore della capacità di una pagina, ci troveremo in una situazione di *overflow*. Il numero di overflow in generale va ad aumentare il costo delle operazioni di ricerca, dal momento che per uno stesso hash si renderà necessario l'accesso ad un numero elevato di pagine.
+
+Quando una funzione di hashing è ben progettata (80% occupazione delle pagine), possiamo assumere di non avere un numero overflow, dunque ogni operazione di ricerca avrà costo _unitario_. Una tipica funzione di hashing è quella che effettua il *modulo* del valore della chiave rispetto al numero di pagine $M$:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    H(k) = k "mod" M_p
+  $,
+)
+
+dove $M_p$ è il numero di pagine del file. Chiaramente il valore '80% di page occupancy' è un valore ideale, che non è così immediato ottenere. Questo verrà ulteriormente discusso nella sezione dedicata alla gestione del loading factor.
+
+=== Gestione dell'overflow
+Come già citato parlando delle funzioni di hashing, la gestione dell'overflow è di fondamentale importanza per garantire efficienza in lettura. Possiamo gestire l'overflow in diversi modi.
+
+==== Open Overflow (Open Addressing)
+In questo approccio i record che non trovano spazio nella pagina designata da $H(k)$ vengono memorizzati in altre pagine libere della zona *primaria*. Si tratta di un approccio estremamente semplice e di facile gestione, il problema sorge nel momento in cui la probabilità di overflow aumenta: diventerà sempre più necessario andare a cercare nelle pagine libere, aumentando così il costo delle operazioni di ricerca.
+
+Un altro importante problema di questo approccio è che, per quanto stiamo risolvendo il problema relativo all'overflow per una dato hash-code, stiamo andando a _rubare_ spazio per record che verranno mappati in altre pagine.
+
+Chiaramente, per quanto questo approccio sia semplice, ha la caratteristica di *degradare velocemente* le prestazioni all'aumentare del numero di record memorizzati.
+
+==== Chained Overflow (Closed Addressing)
+Questo approccio prevede di utilizzare una zona di overflow separata dalla zona primaria. L'idea è quella di utilizzare l'ultima parte di ogni pagina per memorizzare l'overflow. Possiamo vedere ogni pagina come divisa in due porzioni. La prima porzione sarà quella utilizzata per memorizzare i record che mappano in quella pagina, mentre la seconda porzione sarà destinata record in eccedenza, l'ultima parte di questa porzione viene a sua volta utilizzata per memorizzare un puntatore alla pagina di overflow successiva. Questo meccanismo viene mostrato in @fig:chained_overflow.
+
+#figure(
+  image("../images/ch08/chained overflow.png", width: 50%),
+  caption: "Gestione dell'overflow con chained overflow",
+)<fig:chained_overflow>
+
+Questo approccio consente di andare, pur riducendo lo spazio associato ad ogni pagina primaria, di riservare una porzione di pagina ai record che dovrebbero essere effettivamente memorizzati in quella pagina.
+
+==== Gestione completamente separata
+In questo approccio, che è esattamente quello illustrato in @fig:hash_workflow, viene prevista una zona di overflow completamente separata dalla zona primaria. In questo caso ogni pagina di overflow contiene record che non hanno trovato spazio nella zona primaria. Tuttavia è comunque necessario definire in quale maniera i record in overflow vengono memorizzati, il che risulta in un problema simile a quello dell'organizzazione primaria.
+
+=== Loading Factor
+Dato il numero di pagine $M$ e la capacità di una pagina $c$, possiamo definire il *loading factor* $d = N / (M dot c)$, dove $N$ è il numero di record memorizzati. Sostanzialmente si tratta di una metrica che rappresenta la percentuale media di elementi memorizzati in ogni pagina.
+
+Come si può immaginare, un loading factor elevato implica una maggior probabilità di overflow e un conseguente aumento del costo delle operazioni di ricerca.
+
+Il grafico in @fig:loading_factor mostra come il costo medio delle operazioni di ricerca vada ad aumentare all'aumentare del loading factor, per i diversi approcci di gestione dell'overflow.
+
+#figure(
+  image("../images/ch08/loadingfactor.png", width: 70%),
+  caption: "Costo medio delle operazioni di ricerca in funzione del loading factor",
+)<fig:loading_factor>
+
+
+La voce _coalesced list_ sta a rappresentare  un approccio in cui vengono messi insieme elementi appartenenti a diverse 'sorgenti di overflow'.
+
+=== Costi dell'approccio
+Nel caso di ricerca di una *singola chiave* una scelta ragionevole dei parametri del nostro sistema (funzione di hash, gestione dell'overflow, loading factor) ci permette di ottenere un costo medio per operazione di ricerca *prossimo* a *1 page access*. Per ottenere tali risultati alcuni valori tipicamente utilizzati sono un loading factor $d <0.7, c >> 10$.
+
+Come già anticipato non è possibile andare a ricercare valori in *intervalli*, dal momento che non esiste un ordinamento trai valori memorizzati.
+
+Per quanto riguarda gli *inserimenti* e le *cancellazioni*, queste operazioni hanno il costo di 1 operazione in lettura e 1 operazione in scrittura, dunque hanno costo costante.
+
+=== Riorganizzazione della struttura
+Prima di spiegare come avviene questo delicato processo, è importante sottolineare che questa viene effettuata in situazioni abbastanza particolari:
+
+- la quantità di *overflow* è particolarmente elevata (nel caso in cui l'area primaria è utilizzata per gli overflow, altrimenti non serve)
+- quando un numero significativo di record sono stati *cancellati*, e dunque è necessaria una *compattazione* dei record
+
+Per effettuare la riorganizzazione si utilizza un file _temporaneo_ su cui verranno copiati tutti i record. Dopo aver copiato tutti i record verrà effettuata un'operazione di *bulk load*:
+
+- il file temporaneo viene ordinato in base all'hash code $H(k)$
+- caricamento dei record che non causano overflow in ciascun hash file
+- caricamento dei record in overflow nelle pagine di overflow
+
+== Hashing Dinamico
+Sebbene l'*hashing* *statico* sia un approccio semplice che può funzionare in maniera estremamente efficiente a _determinate condizioni_, il problema è che nel momento in cui la situazione inizia a degradare, questa arriva ad essere catastrofica molto rapidamente, richiedendo una riorganizzazione completa della struttura.
+
+L'idea è che, dal momento che la riorganizzazione *non è evitabile* in alcun modo o, per meglio dire, è probabile che nel corso del tempo sarà un processo necessario, vorremmo quantomeno evitare di dover fermare l'intero sistema per effettuare questa operazione.
+
+Ci piacerebbe dunque avere un sistema che ci permetta di eseguire in maniera preventiva alcune delle operazioni necessarie per la riorganizzazione, in modo tale che, rendendo leggermente più lenta l'amministrazione ordinaria, possiamo garantire un sistema più leggero nei confronti della riorganizzazione. Questa è proprio l'idea che sta alla base degli *hash file dinamici*. Abbiamo a disposizione due principali metodologie:
+
+- hashing dinamico che utilizza strutture *ausiliarie*, come ad esempio il _virtual hashing, extensible hash, dynamic hash_.
+- hashing dinamico *senza* strutture *ausiliarie*, come ad esempio il _linear hashing_ o l'_hashing a spirale_.
+
+In questa sezione andremo ad affrontare unicamente hashing lineare e virtuale.
+
+=== Hashing virtuale
+Come sappiamo, il problema della riorganizzazione consiste nel dover riorganizzare un *file intero alla volta*. Immaginiamo di non ammettere overflow, ma di permettere che, nel momento in cui ci troveremmo di fronte a uno sforamento, possiamo creare più spazio per i record. Invece però di andare a creare più spazio per tutti i record, andremo a creare più spazio solo per i record che mapperebbero in una pagina con overflow.
+
+Di seguito mostriamo il workflow di questo approccio:
+
++ Il file in memoria contiene inizialmente un numero $M$ di pagine contigue con capacità $c$. Ogni pagina è identificata da un indirizzo nell'intervallo $[0, M-1]$.
++ Un bit vector $cal(B)$ viene utilizzato per tenere traccia delle pagine che contengono almeno un record al loro interno
++ Inizialmente la funzione di hash $H_0$ è utilizzata per mappare ogni chiave $k$ in un indirizzo $H_0(k) in [0, M-1]$. Se dovesse venir generato un overflow:
+  - il numero di pagine continue viene raddoppiato, creando $M$ nuove pagine
+  - viene creata una nuova funzione di hash $H_1$ tale che $m in [0, 2M-1]$
+  - la funzione $H_1$ viene applicata alla chiave $k$ e a tutti i record nella pagina $m$ che ha causato overflow in modo da distribuire i record tra $m$ e $m'$
+
+In caso di overflow tutti i record nelle pagine diverse dalla pagina $m$ non verranno in alcun modo toccati. In questo modo l'operazione di riorganizzazione viene limitata a un sottoinsieme di pagine, riducendo notevolmente il costo dell'operazione. Chiaramente questo approccio richiede di utilizzare una serie di funzioni $H_0, ... H_r$, dove in generale $H_r$ produce pagine appartenenti all'intervallo $[0, 2^r M - 1]$. Questo meccanismo viene spiegato di seguito.
+
+
+#figure(
+  image("../images/ch08/virtualHash.png", width: 100%),
+  caption: "Esempio di gestione di overflow in una situazione di virtual hashing.
+  Nota Bene: il bit-vector viene mostrato ma è da considerare presente.",
+)<fig:virtual_hashing>
+
+Per andare a gestire la ricerca di un record data una chiave $k$ possiamo far riferimento al seguente algoritmo:
+
+```python
+def PageSearch(r, k: int) -> int:
+  if r < 0
+  # l'algoritmo ha provato tutte le funzioni di hash senza successo
+    raise Exception("Inexistent key")
+  elif B(H(r,k)) == 1:
+    return H(r,k)
+  else:
+    return PageSearch(r-1, k) # ricerca tramite hash precedente
+
+# esempio di utilizzo
+page = PageSearch(r_max, key) # r_max è il massimo hash level in uso
+```
+#remark[
+  Per quanto possa sembrare superflua, il mantenimento del bit vector $cal(B)$ rende possibile evitare di accedere a pagine vuote, riducendo notevolmente il costo delle operazioni di ricerca.
+]
+
+In riferimento a @fig:virtual_hashing, immaginiamo di voler ora inserire la chiave $3343$. Andremo in primo luogo a calcolare $H_1(3343) = 11$. Dal momento che la pagina 11 ha indicatore a 0, andremo a calcolare $H_0(3343) = 4$. Se la pagina 4 fosse vuota, potremmo semplicemente andare ad aggiungere il nuovo valore a questa, ma essendo piena, andremo a ricalcolare $H_1$ su tutti gli elementi della pagina, andando a distribuire i record tra la pagina 4 e la pagina 11, segnalando inoltre che la pagina 11 ora contiene dei record nel bit-vector $cal(B)$.
+
+#remark[
+  Possiamo notare che in realtà, andando a tenere traccia dell'occupazione della pagina, possiamo andare a *recuperare* un *record* in *un* *solo* *accesso* a pagina, questo perché, utilizzando le hash function da quella di ordine maggiore, possiamo essere sicuri che se una pagina è occupata, il record che stiamo cercando si trova sicuramente in quella pagina.
+]
+
+=== Hashing Lineare
+Al contrario dell'hashing virtuale, nel quale l'obiettivo è quello di evitare l'avvenimento di overflow, nell'hashing lineare l'obiettivo è quello di andare a regolamentare la politica con cui questo viene gestito. L'idea è quella di andare a aumentare il numero di pagine non appena abbiamo un overflow. Di seguito mostriamo il flusso operativo di questo approccio:
+
+- Inizialmente vengono allocate $M$ pagine continue con capacità $c$
+- La funzione di hash iniziale $H_0$ è tale che $H_0(k) = k "mod" M$
+- Viene inizializzato un puntatore $p=0$ che punta alla prossima pagina da *splittare*
+- Quando si verifica un overflow nella pagina $m = H_i(k)$:
+  - se $m = p$, viene effettuato uno *split* della pagina $p$, riorganizzando i record con la funzione $H_{i+1}$
+  - se $m > p$, viene creata mantenuta una catena di overflow per la pagina $m$ e viene aggiunta una nuova pagina vuota alla fine del file che rappresenta lo split della pagina $p$, nuovamente i dati verranno riorganizzati
+  - se $m < p$, non serve effettuare alcun tipo di split dal momento che la pagina è già stata 'splittata' precedentemente
+
+
+#figure(
+  image("../images/ch08/linear_hash_1.png", width: 100%),
+  caption: "Posizione di partenza per linear hashing",
+)<fig:linear_hash_start>
+
+@fig:linear_hash_start mostra una possibile situazione di partenza per il nostro scenario di linear hashing. Ipotizziamo che siano stati inseriti dei record, rispettivamente con valore 569 e 563, i cui hash sono $H_0(569) = 2$, $H_0(563) = 3$. Chiaramente guardando alla situazione illustrata si verificheranno due due overflow con due conseguenti split e riorganizzazioni delle pagine 0 e 1. Questo viene rappresentato in @fig:linear_hash_after_two_splits.
+
+
+
+#figure(
+  image("../images/ch08/linear_hash_2.png", width: 100%),
+  caption: "Situazione dopo due split in linear hashing",
+)<fig:linear_hash_after_two_splits>
+
+Ipotizziamo di voler andare ora ad aggiungere la chiave 3820, il cui $H_0(3820) = 5$. Andremo a creare una *catena di overflow* sulla pagina 5 e a a effettuare uno split della pagina due, riorganizzandone i valori andando a eliminare l'overflow per quella pagina. Questo viene mostrato in @fig:linear_hash_after_inserting_3820.
+
+#figure(
+  image("../images/ch08/linear_hash_3.png", width: 100%),
+  caption: "Situazione dopo l'inserimento di 3820 in linear hashing",
+)<fig:linear_hash_after_inserting_3820>
+
+Di seguito mostriamo l'algoritmo per la ricerca di una chiave $k$ tramite linear hashing:
+
+```python
+def SearchPage(p, k: int) -> int:
+  if H_0(k) < p:
+    return H(1, k)
+  else:
+    return H(0, k)
+```
+
+Dopo che si saranno verificati $M$ overflow e conseguenti split, il puntatore $p$ tornerà ad essere 0 e le funzioni di hash saranno sovra-scritte, ossia $H_0 <- H_1$, $H_2 = k "mod" 2^2 M$, e così via.
+
+Nonostante questo approccio goda di ottimi costi medi, e di una buona gestione dell'occupazione dello spazio è ancora impossibile effettuare ricerche su intervalli di valori, è inoltre difficile valutare le performance nel caso peggiore.
+
+
+== Strutture basate su B+ Tree
+Introduciamo in questa sezione quella che è la soluzione più utilizzata in generale, dal momento che è in grado di bilanciare in maniera ottimale l'utilizzo dello spazio garantendo anche *ricerche su intervalli*. La soluzione in questione è fornita dalla struttura *B+ Tree*.
+
+Si tratta a di un albero *multi-way*, ossia un albero in cui ogni nodo può avere più di due figli. Si rende infatti necessario aumentare il branching factor rispetto all'albero binario che non è facilmente paginabile.
+
+All'interno di questa struttura i record vengono memorizzati in *pagine foglia*, mentre tutti i nodi interni contengono valori chiave per *direzionare la ricerca* verso le pagine foglia corrette. Se l'*ordine* (o branching factor di ogni nodo) è $m$, ogni nodo conterrà al suo interno al massimo $m-1$ elementi. Il minimo numero di elementi in un nodo è invece $ceil(m/2) - 1$.
+
+Un'importante proprietà di questo tipo di alberi è che _tutte le pagine foglia_ si trovano allo _stesso livello_ di profondità. Questo garantisce che tutte le ricerche abbiano lo stesso (equo) costo.
