@@ -60,6 +60,8 @@
 #pagebreak()
 #include "chapters/chapter8.typ"
 #pagebreak()
+#include "chapters/chapter9.typ"
+#pagebreak()
 
 
 #pagebreak()

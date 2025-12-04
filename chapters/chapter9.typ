@@ -34,3 +34,10 @@
   counter(math.equation).update(0)
   it
 }
+
+= Organizzazioni e Indici Multidimensionali
+Nello scorso capitolo abbiamo visto come i file possono essere organizzati in maniera tale da rendere più efficienti le operazioni di accesso ai dati sulla base di alcuni attributi. Come abbiamo visto possiamo fornire delle organizzazioni primarie, che possono essere statiche o dinamiche, oppure degli *indici* che permettono di accedere ai dati in maniera efficiente anche quando l'organizzazione primaria non è adatta a soddisfare le richieste delle query.
+
+Tutto ciò che abbiamo visto nel capitolo precedente si basa su strutture dati *mono-dimensionali*, ovvero strutture che permettono di organizzare i dati sulla base di un singolo attributo. Tuttavia nella maggior parte dei contesti avremo in realtà a che fare con dati che sono per loro natura *multi-dimensionali*.
+
+Un esempio molto comune di dati multi-dimensionali sono i dati _spaziali_, ovvero dati che rappresentano oggetti nello spazio, come ad esempio punti, linee, poligoni, ecc. Questi dati sono caratterizzati da più attributi che rappresentano le coordinate spaziali (ad esempio latitudine e longitudine) e spesso è necessario effettuare query che coinvolgono più di un attributo (ad esempio trovare tutti i punti all'interno di una certa area geografica).
