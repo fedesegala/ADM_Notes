@@ -359,5 +359,274 @@ Sebbene si tratti di una struttura secondaria, potrebbe capitare che in maniera 
 )<fig:clustered_unclustered_index>
 
 ==== Indici Densi e Sparsi
-Un'altra importante distinzione che è possibile fare è quella tra indici *densi* e *sparsi*. Un indice è detto _denso_ quando il numero di entry è uguale al numero di record che sono memorizzati in un file. Al contrario un indice _sparso_ contiene un sottoinsieme delle entry del file primario.
-Un esempio classico di indice sparso è quello indotto da un B+ Tree, in cui le entry sono memorizzate unicamente nelle pagine foglia dell'albero e utilizziamo come indice la struttura dei nodi interni dell'albero. Un esempio di indice _denso_ si può trovare in entrambi i casi di @fig:clustered_unclustered_index, in cui ogni record della tabella (file) ha una entry nell'indice.
+Un'altra importante distinzione che è possibile fare è quella tra indici *densi* e *sparsi*. Un indice è detto _denso_ quando il numero di entry è uguale al numero di record che sono memorizzati in un file. Al contrario un indice _sparso_ contiene un sottoinsieme delle entry del file primario. Un esempio di indice _denso_ si può trovare in entrambi i casi di @fig:clustered_unclustered_index, in cui ogni record della tabella (file) ha una entry nell'indice.
+
+Un esempio di indice sparso è un indice in cui ogni elemento di questo ha un puntatore ad un numero di pagina, non ad un RID. Sebbene possa sembrare un approccio meno utile rispetto ad un indice denso, è importante ricordare che il collo di bottiglia è sempre l'accesso alla pagina, non tanto alla ricerca di uno specifico record all'interno di questa. Concretamente un esempio di indice sparso si può vedere in un B+ Tree: i nodi interni contengono informazioni riguardo ad intervalli di valori, e ci permettono di navigare verso la pagina che contiene un certo record.
+
+
+=== Modalità di Costruzione di un Indice
+Ipotizziamo di trovarci in una situazione in cui vorremmo andare a tenere in considerazione più attributi come chiavi di ricerca su uno stesso file. In questo caso, è possibile definire diversi indici, ognuno dei quali basato su una chiave differente.
+
+La gestione degli indici in presenza di più chiavi dipende fortemente dal tipo di organizzazione adottata per il file.
+
+===== Organizzazione Secondaria o Primaria Basata su Heap File
+
+Quando i dati sono organizzati come heap file, non esiste un ordinamento fisico basato su una particolare chiave. In questo scenario sarà necessario creare un indice per ogni chiave su cui desideriamo effettuare ricerche efficienti.
+
+Tutti gli indici creati in questo scenario seguiranno lo schema $K -> "RID"$, dove $K$ è la chiave su cui l'indice è basato e RID è il record identifier del record associato a quella chiave. Ipotizzando dunque di avere una chiave primaria (a livello logico) $K_p$ e un'altra chiave $K$, sarà sostanzialmente indifferente creare un indice su $K_p$ o su $K$, entrambi seguiranno lo schema $K -> "RID"$.
+
+===== Organizzazione Primaria Basata su Chiave $K_p$
+
+Quando i dati sono già organizzati fisicamente secondo una chiave primaria $K_p$ (ad esempio tramite hash o B+ Tree), la situazione cambia: non è infatti necessario creare un indice per $K_p$ poiché è l'organizzazione primaria stessa a fornire accesso diretto ai record tramite questa chiave logica.
+
+Per quanto riguarda la chiave $K$, l'indice che andremo a costruire non avrà più uno schema di tipo $K -> "RID"$, ma piuttosto uno schema di tipo $K -> K-p$, dal momento che l'organizzazione primaria fornisce già un meccanismo efficiente per localizzare i record con chiave di ricerca $K_p$.
+
+Sebbene da un punto di vista teorico sia possibile creare un indice secondario su $K$ che mappi a RID, questo non è generalmente pratico o efficiente: nel caso di strutture statiche come l'hash statico, potrebbe essere fattibile, nel momento in cui adottassimo un'organizzazione dinamica, l'indice creato verrebbe invalidato ogni volta che un record si sposta fisicamente.
+
+=== Costi degli Indici
+In questa sezione andiamo ad analizzare il costo in termini di numero di accessi a pagina per effettuare diversi tipi di operazioni a seconda dell'indice che si intende utilizzare. Supporremo che gli indici presi in considerazione siano *densi*.
+
+Il costo a livello generale si può suddividere in due componenti principali:
+
+- costo di *accesso all'indice*
+- costo di *accesso ai dati*
+
+In ogni caso, il costo di accesso all'indice potrà sempre essere considerato come un singolo accesso a pagina, nel caso peggiore, nel momento in cui l'indice non sia presente in memoria. Per la *ricerca* di un *singolo valore* (equality search), il costo è sempre 1 accesso a pagina, dal momento che l'indice fornisce un puntatore diretto al record.
+
+Ciò in cui possiamo trovare differenze è il costo per la ricerca di un intervallo di valori. Ricordiamo in primo luogo l'importanza del *fattore di selettività* $f(p)$ che serve a dare una stima del numero di record che hanno valori appartenenti ad un certo intervallo. La formula per stimarlo è la seguente:
+
+#math.equation(
+  block: true,
+  $
+    f(p) = (v_2 - v_1) / (V_max - V_min)
+  $,
+)<eq:selectivity_factor>
+
+La differenza tra la ricerca di *intervalli* è mostrata anche in maniera visuale in @fig:clustered_unclustered_search.
+
+==== Indici Unclustered
+Nel caso di indici unclustered, nei quali i record non sono memorizzati in modo ordinato rispetto alla chiave di ricerca. In questo caso il costo di accesso all'indice potrebbe essere sia 0 che 1, a seconda che l'indice sia presente in memoria o meno.
+
+Sappiamo che tutte le foglie di un indice, sono sempre ordinate rispetto alla chiave di ricerca. Tuttavia la struttura su cui sono memorizzati i record potrebbe non esserlo, si veda @fig:clustered_unclustered_index per maggiore chiarezza.
+
+Il costo di accesso all'indice sarà dato dal fattore di selettività moltiplicato per il numero di foglie presenti nell'indice. Una volta ottenuti i puntatori a record, non potremo fare altro che accedere a ciascun record singolarmente, dal momento che non esiste un ordinamento fisico che ci permetta di accedere a più record in un singolo accesso a pagina. Dunque il costo totale per la ricerca di un intervallo di valori in un indice unclustered sarà:
+
+#math.equation(
+  block: true,
+  $
+    C_("unclustered") = f(p) dot N_("leaves") + f(p) dot N_("records")
+  $,
+)
+
+==== Indici Clustered
+Nel caso in cui lavorassimo con un indice di tipo clustered, dove l'ordinamento delle chiavi nell'indice rispecchia l'ordinamento fisico dei dati, per una ricerca un un range di valori avremo la possibilità di accedere a più record in un singolo accesso a pagina sfruttando la località spaziale dei dati.
+
+Il costo di accesso all'indice sarà sempre dato dal fattore di selettività moltiplicato per il numero di foglie presenti nell'indice. Tuttavia, una volta ottenuti i puntatori ai record, dovremo accedere a un numero di pagine proporzionale al fattore di selettività. Dunque il costo totale per la ricerca di un intervallo di valori in un indice clustered sarà:
+
+#math.equation(
+  block: true,
+  $
+    C_("clustered") = f(p) dot N_("leaves") + f(p) dot N_("pages")
+  $,
+)
+
+
+
+#figure(
+  grid(
+    columns: 2,
+    gutter: 2mm,
+    image("../images/ch08/unclustered_search.png", width: 100%),
+    image("../images/ch08/clustered_search.png", width: 100%),
+  ),
+  caption: "Ricerca di un intervallo di valori in un indice unclustered e clustered",
+)<fig:clustered_unclustered_search>
+
+
+== Indici su Attributi Non Chiave
+Fino a questo momento abbiamo sempre utilizzato indici che lavorano con attributi *chiave*, ossia attributi il cui valore è univoco per ogni record. Tuttavia, in molto casi potremmo aver bisogno di effettuare ricerche su attributi diversi, non chiave, i cui valori potrebbero *non esistere* o essere *ripetuti* in più record.
+
+Ipotizzando di costruire un B+ Tree su un attributo totale, andremmo a 'rinunciare' a una proprietà sostanziale dei B+ Tree, ossia il fatto che esso induca un *ordinamento totale* sui record. Nel caso di attributi non univoci potremmo avere delle uguaglianze tra chiavi. Chiaramente questo approccio potrebbe essere utilizzato ma possiamo immaginare che non sia il più efficiente. Basti semplicemente pensare al fatto che staremmo 'sprecando' delle foglie per memorizzare dei record che potrebbero essere memorizzati insieme.
+
+=== Indici a Lista Invertita
+Per capire il senso di questo approccio, proviamo a guardare alla situazione seguente:
+
+#figure(
+  image("../images/ch08/inverted_index_motivation.png", width: 100%),
+  caption: "Esempio di tabella con attributo non chiave 'Quantity'",
+)
+
+Possiamo notare che l'indice sulla tabella mostrata, contiene un sacco di entry duplicate, dal momento che l'attributo 'Quantity' non è una chiave univoca. In questo caso potremmo andare a creare un indice di tipo *lista invertita*.
+
+#figure(
+  image("../images/ch08/inverted_index.png", width: 100%),
+  caption: "Esempio di indice a lista invertita per l'attributo 'Quantity'",
+)<fig:inverted_index>
+
+Possiamo notare come l'utilizzo di questo indice invertito ci permetta di memorizzare in maniera più efficiente i record, raggruppando assieme i record che condividono lo stesso valore per l'attributo 'Quantity'.
+Un altro aspetto importante che possiamo notare rispetto agli indici invertiti è il fatto che, come vediamo in @fig:inverted_index, la lista dei RID per ciascun valor è memorizzata in *ordine*.
+
+==== Vantaggi degli Indici invertiti
+Di seguito andiamo ad elencare i vantaggi dell'impiego di questo tipo di struttura per la gestione di indici su attributi non chiave:
+
+- il risultato di operazioni di *conteggio* su attributi non chiave può essere ottenuto in maniera estremamente efficiente, andando unicamente a controllare l'indice
+- l'organizzazione fisica del file è totalmente indipendente dall'organizzazione dell'indice, permettendo così di utilizzare organizzazioni primarie più semplici
+
+==== Requisiti di memoria
+Dato un insieme di dati $R$, possiamo identificare i seguenti parametri:
+
+- $N_("rec")(R)$: il numero di record in $R$
+- $N_("pag")(R)$: il numero di pagine utilizzato per memorizzare i record in $R$
+- $L_R$: il numero di byte necessari per memorizzare numero di record $N_("rec")(R)$
+- $N_I(R)$: il numero di indici creati su $R$
+- $L_I$: il numero medio di byte necessario a rappresentare un valore per la chiave sulla quale è costruito l'indice $I$
+- $N_("key")(I)$: il numero di valori distinti per la chiave dell'indice $I$
+- $N_("leaf")(I)$: il numero di foglie nell'indice $I$
+- $L_("RID")$: il numero di byte necessari per memorizzare un RID
+
+Dati i parametri sopra descritti possiamo descrivere il costo di memorizzazione degli indici definiti su $R$ come segue:
+
+#math.equation(
+  block: true,
+  $
+    cal(M) & = coleq(#purple, limits(sum)_(i=1)^(N_(I)(R)) N_("key")(I_i) (L_I_i + L_R)) + coleq(#orange, N_(I)(R) space N_("rec")(R) space L_("RID")) \
+    & approx N_I (R) space N_"rec" (R) space L_"RID"
+  $,
+)
+
+Dove, la #text(fill: purple)[prima parte] rappresenta il costo di memorizzazione della chiave per ogni record nell'indice, mentre la #text(fill: orange)[seconda parte] rappresenta il costo di memorizzazione delle liste di RID per ogni lista invertita di ogni indice. Il motivo per cui la prima parte viene omessa è dato dal fatto che, tipicamente, in un indice a lista invertita, la terza colonna, ovvero la lista dei RID per ciascun valore è ciò che domina il costo di memorizzazione dell'indice. Se questo non fosse il caso, potremmo semplicemente utilizzare un indice B+ Tree standard.
+
+==== Costo Ricerca di una Chiave
+Per quanto riguarda il costo legato alla ricerca di una chiave sappiamo che questo si può scomporre in due elementi principali. Il costo legato all'accesso all'indice e il costo legato all'accesso ai dati.
+
+Dal momento che stiamo lavorando su un un indice definito su valori non univoci, possiamo immaginarci che il processo di ricerca sia simile a quello che avviene con la ricerca su un intervallo. Andiamo dunque a definire il *fattore di selettività*:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    f_s (psi) = f_s (A = v) = 1 / (N_"key" (I))
+  $,
+)
+
+Possiamo vedere questo fattore di selettività come la probabilità che un record abbia un certo valore $v$ per l'attributo $A$. Non sempre possiamo dare un valore preciso a questo numero, ma dal momento che tipicamente le chiavi sono distribuite in maniera uniforme possiamo assumere che la questo valore sia stimabile con la formula mostrata in precedenza. Il costo totale di accesso all'indice sarà dunque:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    C_I = ceil(f_s (psi) space N_"leaf" (I)) = ceil((N_"leaf" (I)) / (N_"key" (I)))
+  $,
+)
+
+Per quanto riguarda il costo di accesso ai dati abbiamo, in maniera analoga al caso in cui stiamo ricercando un intervallo di valori univoci, che il costo varia tra indici clustered e unclustered. Iniziamo con il definire *$E_"rec"$* che rappresenta il numero di record che rappresenta il numero di record che soddisfano la condizione $psi$:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    E_"rec" = N_"rec" (R) space f_s (psi)
+  $,
+)
+
+
+A questo punto possiamo andare a vedere come variano i costi di accesso ai dati. Nel caso di un *indice clustered* il costo sarà dato da:
+
+#math.equation(
+  block: true,
+  $
+    C_D = ceil(N_"pag" (R) space f_s (psi))
+  $,
+)<eq:inverted_clustered_cost>
+
+in maniera analoga a quanto visto per la range search. Nel caso invece in cui avessimo a che fare con un *indice unclustered* con liste ordinate di RID il costo sarà dato da:
+
+#math.equation(
+  block: true,
+  $
+    C_D = Phi(E_"rec", space N_"pag" (R))
+  $,
+)
+
+dove la funzione $Phi(x, y)$ è anche detta formula di *Cardenas*: $Phi(k, n) = n(1 - (1 - 1/n)^k)$, ed è una funzione limitata superiormente dal minimo tra $k$ e $n$. Possiamo vedere il grafico di questa funzione in @fig:cardenas.
+
+#figure(
+  image("../images/ch08/cardenas.png", width: 60%),
+  caption: "Grafico della funzione di Cardenas",
+)<fig:cardenas>
+
+==== Costo di Ricerca di un Range di Valori
+Nel caso in cui vogliamo ricercare un range di valori $[v_1, v_2]$ per un attributo non chiave, possiamo andare a definire il fattore di selettività come:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    f_s (psi) = f_s (A in [v_1, v_2]) = (v_2 - v_1) / (max(A) - min(A))
+  $,
+)
+
+A questo punto possiamo vedere come il costo di accesso all'indice sia dato, come usuale, dal numero di foglie moltiplicato per il fattore di selettività:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    C_I = ceil(N_"leaf" (A_i) dot f_s (psi))
+  $,
+)
+
+Questo dal momento che avremo bisogno di accedere ad un numero di foglie proporzionale a quante foglie andrà a coprire l'intervallo di valori. Per quanto riguarda il costo di accesso ai dati, questo sarà in maniera molto generale dato dal prodotto tra il numero liste e il numero di pagine per ogni lista. Possiamo in primo luogo stimare il numero di liste selezionate dall'intervallo utilizzando il fattore di selettività:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    N_"lists" = ceil(N_"key" (A) dot f_s (psi))
+  $,
+)
+
+Una volta ottenuto il numero di liste non ci resta che andare a studiare il numero di pagine. Come prevedibile, questo sarà diverso in base a se abbiamo a che fare con un indice clustered o unclustered. Nel caso di indici *clustered* avremo:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    N_"page" = ceil(N_"pag"(R) dot 1 / (N_"key" (A)))
+  $,
+)
+
+Questo dal momento che si suppone che i record siano distribuiti in maniera uniforme su tutte le chiavi. Nel caso di indici *unclustered* il numero di pagine sarà dato da:
+
+#math.equation(
+  block: true,
+  numbering: none,
+  $
+    N_"page" = ceil(Phi((N_"rec" (R)) / N_"key" (A), space N_"pag" (R)))
+  $,
+)
+
+=== Indici Bitmap
+Un'altra interessante struttura dati che può essere utilizzata per la gestione di indici su attributi non chiave è quella dell'*indice bitmap*. Una bitmap è un modo alternativo per rappresentare le liste invertite viste in precedenza.
+
+
+#figure(
+  image("../images/ch08/bitmap_index.png", width: 48%),
+  caption: "Esempio di indice bitmap per l'attributo 'Quantity'",
+)<fig:bitmap_index>
+
+Possiamo vedere l'indice bitmap come una tabella, in cui ogni colonna è un valore distinto per l'attributo su cui è costruito l'indice, mentre ogni riga rappresenta un RID.@fig:bitmap_index mostra come l'indice invertito di @fig:inverted_index possa essere rappresentato come un indice bitmap.
+
+==== Dimensione di un Indice Bitmap
+È interessante andare a confrontare la memoria occupata da un indice invertito implementato tramite B+ Tree e quella di un indice bitmap costruiti sullo stesso attributo. Intuitivamente è facile immaginare come, nel caso in cui abbiamo pochi valori distinti per l'attributo, l'indice bitmap risulti essere più compatto rispetto all'indice invertito. Viceversa, nel momento in cui l'indice va a partizionare i dati sulla base di molteplici valori distinti, l'indice bitmap rischia di esplodere in dimensionalità rispetto all'indice invertito.
+
+Nel caso di molti valori distinti, ci troveremmo infatti con un indice bitmap formato da molte colonne, ognuna delle quale andrebbe a contenere un numero di bit pari al numero di record totali. Al contrario, nel caso in cui abbiamo pochi valori distinti, l'indice bitmap risulterebbe essere estremamente compatto, dal momento che il numero di colonne sarebbe molto basso.
+
+==== Vantaggi degli Indici Bitmap
+Di seguito andiamo ad elencare i vantaggi dell'impiego di una simile struttura dati:
+
+- si tratta di un approccio *leggero* nel caso in cui l'attributo su cui è costruito l'indice abbia pochi valori distinti
+- le operazioni di *AND*, *OR* e *NOT* tra bitmap sono estremamente efficienti, dal momento che possono essere effettuate a livello di bit
+- si tratta di un approccio molto efficiente per query che utilizzano il *conteggio* dei record che soddisfano una certa condizione
+
+
