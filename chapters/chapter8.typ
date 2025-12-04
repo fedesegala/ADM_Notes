@@ -255,3 +255,109 @@ Si tratta a di un albero *multi-way*, ossia un albero in cui ogni nodo può aver
 All'interno di questa struttura i record vengono memorizzati in *pagine foglia*, mentre tutti i nodi interni contengono valori chiave per *direzionare la ricerca* verso le pagine foglia corrette. Se l'*ordine* (o branching factor di ogni nodo) è $m$, ogni nodo conterrà al suo interno al massimo $m-1$ elementi. Il minimo numero di elementi in un nodo è invece $ceil(m/2) - 1$.
 
 Un'importante proprietà di questo tipo di alberi è che _tutte le pagine foglia_ si trovano allo _stesso livello_ di profondità. Questo garantisce che tutte le ricerche abbiano lo stesso (equo) costo.
+
+#remark[
+  Il numero minimo di elementi in un nodo è necessario per garantire la proprietà di *bilanciamento*. Questo si rivela di fondamentale importanza per garantire che le stime dei costi delle operazioni siano veritiere e affidabili anche nei casi pessimi.
+]
+
+#figure(
+  image("../images/ch08/b+tree.png", width: 70%),
+  caption: "Esempio di B+ Tree di ordine 4",
+)<fig:bplus_tree>
+
+Il fatto che distingue fondamentalmente un B+ Tree da un B-Tree è che in un B+ Tree tutti i record sono memorizzati in nodi foglia, mentre i nodi interni contengono informazioni per il 'direzionamento' della ricerca. Questo comporta che nel momento in cui vogliamo andare a scorrere tutti i nodi foglia, possiamo farlo in maniera estremamente efficiente, dal momento che questi nodi sono collegati tra di loro tramite puntatori. Questo rende i B+ Tree estremamente efficienti per ricerche su intervalli di valori, come mostrato in @fig:bplus_tree.
+
+=== Ricerca di una chiave
+Nel caso di un B-Tree se avessimo voluto cercare tutti i valori inferiori inferiori a 12 in @fig:bplus_tree, avremmo dovuto seguire il primo puntatore del nodo radice, un poi, una volta terminato, tornare alla radice per seguirne il secondo valore. Utilizzato un B+ Tree abbiamo invece la possibilità di scendere il primo puntatore utile e, dal momento che le foglie sono ordinate secondo un attributo (*sequenzialità*), scorrere i collegamenti tra le pagine foglia evitando di dover risalire l'albero ogni volta.
+
+Questa struttura spesso il nome di *index-organized table* dal momento che l'intera tabella viene memorizzata all'interno della struttura ad albero.
+
+È molto facile vedere come la ricerca di una *range di valori* $[k_1, k_2]$ possa essere effettuata in maniera molto efficiente, andando a cercare il primo valore $k_1$ e scorrendo le pagine foglia fino a raggiungere il valore $k_2$.
+
+#remark[
+  Possiamo in un certo senso vedere la struttura dei nodi interni del B+ Tree come una sorta di *indice multi-livello* che ci permette di localizzare in maniera efficiente le pagine foglia.
+]
+
+=== Inserimento di una chiave
+Nel momento in cui volessimo andare ad inserire una nuova chiave $k$ all'interno del B+ Tree, distinguiamo due casi:
+
+- la pagina foglia in cui dovrebbe essere inserita la chiave $k$ ha spazio sufficiente per inserirla: in questo caso andremo semplicemente ad inserire la chiave nella pagina foglia, mantenendo l'ordinamento dei valori al suo interno.
+- la pagina foglia in cui dovrebbe essere inserita la chiave $k$ non ha spazio a sufficienza: andiamo di seguito a esplorare come avviene questa delicata operazione.
+
+Possiamo avere due tipologie di overflow su un nodo dell'albero da gestire:
+
+- *overflow* su una *pagina foglia*: in questo caso il nodo foglia viene diviso, il primo nodo conterrà $ceil(M/2)-1$ chiavi, mentre il secondo conterrà le chiavi rimanenti. Il nodo padre di questo nodo foglia si vedrà aggiunto il primo elemento della foglia di destra
+
+- *overflow* su un *nodo intermedio*: in questo caso, analogamente a quanto avviene per le pagine foglia, il nodo intermedio viene diviso in due nodi, con il primo che conterrà $ceil(M/2)-1$ chiavi. Di nuovo la più piccola delle chiavi del nodo di destra verrà promossa al nodo padre
+
+Supponiamo di avere un B+ Tree di ordine $m=3$, questo significa che ogni nodo può contenere al massimo 2 chiavi e 3 puntatori. Ipotizziamo che questo albero sia inizialmente vuoto e che vogliamo andare ad inserire le chiavi 3, 10, 7, 15, 20, 13 in questo ordine.
+
+Dopo l'inserimento delle chiavi 3 e 10 la situazione sarà quella mostrata di seguito, con entrambe le chiavi memorizzate nella stessa pagina foglia e nessun nodo intermedio.
+
+#align(center)[
+  #image("../images/ch08/b+tree_insertion1.png", width: 20%)
+]
+
+Ipotizziamo ora di dover inserire la chiave 7. Questa dovrebbe essere inserita tra 3 e 10, ma la pagina foglia non ha sufficiente spazio. È quindi necessario effettuare uno *split* della pagina foglia. Per capire come dividere i valori nelle foglie di solito andiamo a mettere $ceil(M/2)-1$ nodi a sinistra e i nodi rimanenti nel nodo di destra. Dal momento che non abbiamo nodi intermedi per gestire il flusso di ricerca, andremo ad inserire un nodo intermedio che conterrà il valore di chiave più piccolo del nodo di destra, in questo caso 7. La situazione dopo l'inserimento della chiave 7 sarà dunque la seguente:
+#align(center)[
+  #image("../images/ch08/b+tree_insertion2.png", width: 40%)
+]
+
+Volendo ora inserire il 15, chiaramente questo andrà inserito nella pagina voglia di destra. Nuovamente sarà necessario operare uno split, dal momento che la pagina foglia non ha sufficiente spazio. Dopo aver effettuato lo split ci troveremo con due nuovi nodi foglia, uno contenente unicamente il valore 7 e uno contenente i valori 10 e 15. Dopo questo passaggio è inoltre necessario aggiungere al nodo intermedio precedente (che è anche la radice) un nuovo valore di chiave, che sarà il 10. Questo viene mostrato nell'immagine che segue:
+#align(center)[
+  #image("../images/ch08/b+tree_insertion3.png", width: 70%)
+]
+
+È ora il momento di aggiungere la chiave 20. Questa andrà inserita nell'ultima pagina foglia ma, non essendo disponibile spazio sufficiente, sarà necessario effettuare un nuovo split. Dopo aver effettuato lo split, andremo ad aggiungere il valore 15 al nodo intermedio, il quale non avendo a sua volta sufficiente spazio, dovrà essere anch'esso diviso. L'inserimento della chiave 13, andrà in seguito a riempire una pagina con spazio sufficiente, dunque non sarà necessario effettuare alcuno split. Di seguito mostriamo la situazione dopo l'inserimento di tutti le chiavi.
+#align(center)[
+  #image("../images/ch08/b+tree_insertion4.png", width: 90%)
+]
+
+=== Cancellazione di una chiave
+Come possiamo immaginare, la cancellazione viene tipicamente operata solamente sulle pagine foglia. È tuttavia necessario che un nodo non vada in '*underflow*', ossia che non contenga meno della soglia minima di elementi, che ricordiamo essere $ceil(M/2)-1$.
+
+In questo caso sarà necessaria una riorganizzazione della struttura. Per fare questo abbiamo tipicamente a disposizione due operazioni:
+
+- *rotazione*: viene tipicamente utilizzata nel momento in cui un nodo fratello ha più del numero minimo di elementi. In questo caso andremo a prendere in prestito un elemento dal nodo fratello, aggiornando di conseguenza il nodo padre
+- *merging*: viene utilizzata quando il fratello immediatamente successivo ha esattamente il minimo degli elementi. In questo caso andremo a fondere i due nodi, eliminando il puntatore al nodo fratello dal nodo padre. Questa operazione può causare underflow anche nel padre, il quale andrà gestito in maniera ricorsiva.
+
+=== Profondità di un B+ Tree
+Come possiamo immaginare, e come abbiamo anche visto studiando le strutture ad albero in generale, la *profondità* di questo albero va a determinare in maniera significativa il costo delle operazioni di ricerca. Possiamo andare a stimare la profondità dell'albero andando a stabilire un lower bound (caso _migliore_) e un upper bound (caso _peggiore_):
+
+#math.equation(
+  block: true,
+  $
+    log_m(N + 1) <= h <= log_(ceil(m/2))((N + 1)/2)
+  $,
+)
+
+Ovviamente il caso peggiore va a verificarsi quando ogni nodo è occupato dal numero minimo di elementi, mentre il caso migliore si verifica quando ogni nodo è completamente pieno.
+
+==== Applicazioni Pratiche dei B+ Tree
+Andiamo a vedere alcuni valori tipici dei parametri per la costruzione di un B+ Tree in applicazioni pratiche. Normalmente l'ordine $m$ di un albero è un valore $in [100,200]$, questo permette di avere alberi con un fill-factor che si aggira attorno al 67% circa.
+
+Questi valori consentono di avere alberi strutturati in modo tale che la parte dell'indice (*nodi intermedi*) sia ospitabile all'interno del buffer pool, consentendo così di ridurre notevolmente il numero di accessi a disco necessari per le operazioni di ricerca.
+
+== Indici
+Dopo aver introdotto alcune tipologie di organizzazioni primarie per i file, andiamo a vedere da questo momento in poi le organizzazioni *secondarie*, ossia strutture dati basate su *indici*.
+
+#definition(title: "Indice")[
+  Un *indice* è una collezione di record con campi $[k_i, r(k_i)}$, dove $k_i$ è una chiave e $r(k_i)$ è un *record identifier* (RID) per il record con chiave $k$.
+]
+
+Utilizzare una struttura secondaria come un indice, permette di non dover modificare il riferimento fisico dei record nel file principale. Questo ci consente di poter utilizzare organizzazioni primarie più semplici ed economiche, come quella seriale (heap file), dal momento che la gestione dell'ordinamento e della localizzazione dei record viene demandata all'indice secondario.
+
+Dato un file con molteplici record, è possibile stabilire diversi tipi di indici, ognuno dei quali con una chiave di ricerca differente.
+Il fatto di poter utilizzare più indici su uno stesso file consente di poter effettuare ricerche efficienti su condizioni differenti, senza dover modificare la struttura primaria del file. Questo sarebbe impossibile nel caso di organizzazioni primarie basate su alberi o heap file sequenziale, dal momento che in questi casi l'ordinamento fisico dei record è vincolato alla chiave primaria.
+
+==== Indici Clustered e Unclustered
+Sebbene si tratti di una struttura secondaria, potrebbe capitare che in maniera casuale, l'indice vada più o meno a ricalcare la struttura ordinata di un file primario. In questi casi si parla di *indici clustered*, in caso contrario si parla di *indici unclustered*.
+
+#figure(
+  image("../images/ch08/index.png", width: 85%),
+  caption: "Esempio di indice clustered (sinistra) e unclustered (destra) data una tabella",
+)<fig:clustered_unclustered_index>
+
+==== Indici Densi e Sparsi
+Un'altra importante distinzione che è possibile fare è quella tra indici *densi* e *sparsi*. Un indice è detto _denso_ quando il numero di entry è uguale al numero di record che sono memorizzati in un file. Al contrario un indice _sparso_ contiene un sottoinsieme delle entry del file primario.
+Un esempio classico di indice sparso è quello indotto da un B+ Tree, in cui le entry sono memorizzate unicamente nelle pagine foglia dell'albero e utilizziamo come indice la struttura dei nodi interni dell'albero. Un esempio di indice _denso_ si può trovare in entrambi i casi di @fig:clustered_unclustered_index, in cui ogni record della tabella (file) ha una entry nell'indice.
