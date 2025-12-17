@@ -1,4 +1,4 @@
-#import "@preview/theorion:0.4.0": *
+#import "@preview/theorion:0.4.1": *
 #import cosmos.fancy: *
 #import "@preview/cetz:0.4.2": canvas, draw, tree
 #import "../lib.typ": *

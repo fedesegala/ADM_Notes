@@ -172,8 +172,6 @@
     },
   )
 
-  // Configure equation numbering.
-  set math.equation(numbering: "(1)")
 
   // Display inline code in a small box that retains the correct baseline.
   show raw.where(block: false): box.with(
@@ -225,9 +223,9 @@
 }
 
 
-#import "@preview/theorion:0.4.0": language-aware-start, theorion-i18n, theorion-i18n-map
+#import "@preview/theorion:0.4.1": language-aware-start, theorion-i18n, theorion-i18n-map
 #let example-box(
-  fill: rgb("#acb2bf"),
+  fill: rgb("#a5a3ff"),
   ..args,
   title,
   body,

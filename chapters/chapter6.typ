@@ -1,5 +1,5 @@
 
-#import "@preview/theorion:0.4.0": *
+#import "@preview/theorion:0.4.1": *
 #import cosmos.fancy: *
 #show: show-theorion
 #import "@preview/codly:1.3.0": *
@@ -341,4 +341,3 @@ Proprio in merito a questa forma _rilassata_ di consistenza, possiamo introdurre
 Dato il concetto di finestra di inconsistenza, possiamo introdurre la nozione di *eventual consistency* che garantisce che, in _assenza di aggiornamenti_, tutte le repliche convergeranno verso lo stesso valore dopo un certo periodo di tempo, tale periodo è appunto la finestra di inconsistenza.
 
 Uno dei metodi utilizzato per cercare di ottenere consistenza in un sistema distribuito è quello di utilizzare il concetto di *quorum*. In questo approccio, per ogni operazione di lettura o scrittura viene richiesto un numero minimo di repliche per completare l'operazione. Questo concetto potrà essere meglio approfondito all'interno del corso di sistemi distribuiti.
-

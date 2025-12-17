@@ -1,4 +1,4 @@
-#import "@preview/theorion:0.4.0": *
+#import "@preview/theorion:0.4.1": *
 #import cosmos.fancy: *
 #show: show-theorion
 #import "@preview/codly:1.3.0": *
@@ -148,7 +148,7 @@ Il motivo per cui questa curva è chiamata Z-order è che l'elemento di base è 
   grid(
     columns: (50%, 50%),
     rows: (auto, auto),
-    column-gutter: (-25%),
+    column-gutter: (-22%),
 
     image("../images/ch09/morton2.png", width: 50%), image("../images/ch09/morton3.png", width: 50%),
     image("../images/ch09/morton4.png", width: 50%), image("../images/ch09/morton5.png", width: 50%),
@@ -388,7 +388,7 @@ La scelta di quale regione considerare può essere effettuata andando a consider
   ]
   Le regioni candidate alla memorizzazione di $S$ sono $R_(23)$ e $R_(21)$. Dal momento che $R_(21)$ richiede un aumento minore dell'area del bounding box per contenere $S$, scegliamo questa regione per l'inserimento. Seguendo il puntatore $p_(21)$ nell'immagine precedente andremo a considerare il nodo foglia a sinistra; andando ad inserire il nuovo elemento otteniamo un *overflow*, dal momento che è il primo possiamo procedere con un *forced reinsert*. Supponiamo di provare a reinserire la data region $R_1$. Ciò che avverrebbe in questo caso è che la regione $R_1$ verrebbe nuovamente inserita nella stessa sovra-regione $R_21$. andando a causare un *secondo overflow*.
 
-  A questo punto andrà a verificarsi una *suddivisione* della regione. Supponiamo di aver diviso le data region in ${R_1, S}$ e ${R_2, R_3}$. Siano rispettivamente $R_24$ ed $R_25$ i minimum bounding rectangle associati a queste due nuove regioni. Andremo ad aggiornare il nodo padre. A livello di nodo *radice* _non ha alcun senso praticare reinserimento_ procediamo dunque con un nuovo *split* della radice ipotizzando che verrà divisa in due nuove regioni $R_(26)$ e $R_(27)$ che conterranno rispettivamente ${R_24, R_25}$ e ${R_22, R_23}$. Di seguito mostriamo la situazione finale:
+  A questo punto andrà a verificarsi una *suddivisione* della regione. Supponiamo di aver diviso le data region in ${R_1, S}$ e ${R_2, R_3}$. Siano rispettivamente $R_24$ ed $R_25$ i minimum bounding rectangle associati a queste due nuove regioni. Andremo ad aggiornare il nodo padre. A livello di nodo *radice* _non ha alcun senso praticare reinserimento_ procediamo dunque con un nuovo *split* della radice ipotizzando che verrà divisa in due nuove regioni $R_(26)$ e $R_(27)$ che conterranno rispettivamente ${R_24, R_25}$ e ${R_22, R_23}$. Mostriamo il risultato finale dell'inserimento in @fig_09_rstar_after_insert.
 
   #figure(
     grid(
@@ -397,6 +397,7 @@ La scelta di quale regione considerare può essere effettuata andando a consider
       image("../images/ch09/dataregions_after_insert.png", width: 100%),
       image("../images/ch09/r*tree_afterinsert.png", width: 100%),
     ),
-  )
+    caption: "Esempio di inserimento di una nuova regione in un R*-Tree",
+  )<fig_09_rstar_after_insert>
 
 ])

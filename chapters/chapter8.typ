@@ -1,4 +1,4 @@
-#import "@preview/theorion:0.4.0": *
+#import "@preview/theorion:0.4.1": *
 #import cosmos.fancy: *
 #show: show-theorion
 #import "@preview/codly:1.3.0": *
@@ -628,5 +628,3 @@ Di seguito andiamo ad elencare i vantaggi dell'impiego di una simile struttura d
 - si tratta di un approccio *leggero* nel caso in cui l'attributo su cui è costruito l'indice abbia pochi valori distinti
 - le operazioni di *AND*, *OR* e *NOT* tra bitmap sono estremamente efficienti, dal momento che possono essere effettuate a livello di bit
 - si tratta di un approccio molto efficiente per query che utilizzano il *conteggio* dei record che soddisfano una certa condizione
-
-

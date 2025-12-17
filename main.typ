@@ -3,7 +3,7 @@
 #import "@preview/codly-languages:0.1.1": *
 #show: codly-init.with()
 
-#import "@preview/theorion:0.4.0": *
+#import "@preview/theorion:0.4.1": *
 #import cosmos.fancy: *
 
 #set text(
@@ -62,6 +62,8 @@
 #pagebreak()
 #include "chapters/chapter9.typ"
 #pagebreak()
+#include "chapters/chapter10.typ"
+#pagebreak()
 
 
 #pagebreak()
@@ -81,4 +83,3 @@
   }
   it
 }
-

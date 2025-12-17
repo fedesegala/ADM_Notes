@@ -1,5 +1,5 @@
 
-#import "@preview/theorion:0.4.0": *
+#import "@preview/theorion:0.4.1": *
 #import cosmos.fancy: *
 #show: show-theorion
 #import "@preview/codly:1.3.0": *
@@ -306,7 +306,6 @@ Di seguito andiamo ad illustrare i vari costi associati all'utilizzo di una arch
 
 #math.equation(
   block: true,
-  numbering: "(1)",
   $
     N_("page")(R) = N_("rec")(R) dot L_r / D_("page")
   $,
@@ -514,7 +513,6 @@ A questo punto non resta che andare a investigare il numero di passi di merge $k
 
 #math.equation(
   block: true,
-  numbering: "(1)",
   $
     2 dot N_("page")(R) dot (1 + ceil(log_Z S))
   $,
