@@ -293,3 +293,303 @@ Immaginiamo di avere due liste $L_r, L_u$ che conterranno rispettivamente le tra
 #figure(
   image("/assets/11_06_full_recovery_example.png", width: 80%)
 )
+
+== Gestore della Concorrenza
+Dopo aver introdotto il modulo di gestione delle transazioni e del ripristino, andiamo ora a trattare l'ultimo elemento fondamentale dello storage engine, ossia il modulo di gestione della concorrenza.
+
+Si tratta di un elemento di cruciale importanza, dal momento che garantire utilizzo concorrente da parte di più utilizzatori è un requisito chiave per un qualsiasi sistema che gestisce dati. Il problema principale che si pone nel gestire scenari di questo genere è presentato in @fig_11_06_concurrency_start. 
+
+#figure(
+  image("../assets/11_06_concurrency_start.png", width: 30%), 
+  caption: [Esempio di esecuzione concorrente di due transazioni]
+)<fig_11_06_concurrency_start>
+
+Il problema che si verifica in una situazione come quella mostrata in @fig_11_06_concurrency_start sta nel fatto che il risultato dell'esecuzione concorrente delle due transazioni non è equivalente a quello che si otterrebbe svolendo le operazioni delle due transazioni in un ordine diverso. In questo specifico caso, abbiamo che il risultato delle operazioni di una delle due operazioni viene 'perso' a causa dell'esecuzione concorrente.
+
+=== Teoria della Serializzabilità
+Quando due transazioni sono eseguite in modo concorrente, le operazioni che esse svolgono sulla base di dati sono tipicamente interlacciate, ossia, le operazioni di una transazione vengono eseguite in mezzo alle operazioni dell'altra transazione. Questo interlacciamento può portare a risultati non desiderati, come ad esempio in @fig_11_06_concurrency_start, dove il risultato finale non è equivalente a quello che si otterrebbe eseguendo le due transazioni in sequenza.
+
+Un modo per evitare problemi di *interferenza* tra le transazioni è quello di non permettere interlacciamento e adottare una politica di esecuzione *seriale*, in cui le transazioni vengono eseguite una dopo l'altra, senza interlacciamento. In questo modo, il risultato finale sarà sempre equivalente a quello che si otterrebbe ottenendo eseguendo le transazioni in sequenza.
+
+Tuttavia questo andrebbe a limitare fortemente le prestazioni del sistema, dal momento che non sarebbe possibile sfruttare la concorrenza per migliorare l'efficienza delle operazioni.
+
+#definition(title: "Serializzabilità")[
+  L'esecuzione di un set di transazioni è detta *serializzabile* se il risultato finale è equivalente a quello che si otterrebbe eseguendo le transazioni in sequenza, una dopo l'altra.
+]
+
+Quello su cui si concentra il gestore della concorrenza è proprio garantire che l'esecuzione delle transazioni sia serializzabile, senza dover rinunciare all'interlacciamento delle operazioni. La correttezza di uno scheduler di questo genere viene garantita da alcuni risultati dalla teoria della *serializzabilità*. 
+
+==== Transazione
+Come abbiamo già menzionato, una transazione è un'unità di lavoro sequenziale che opera sulla base di dati tramite un insieme di operazioni `read`, `write`, `commit`, `abort`. Consideriamo il seguente programma: 
+
+#align(center)[
+  #block(width: 50%)[
+```python
+def transaction(): 
+  # begin
+  x: int = read(x) 
+  y: int = read(y)
+  x = x + y 
+  write(x)
+  #end
+```
+]]
+
+Esso si può vedere in termini di transazione come una sequenza $r[x], r[y], w[x], c$, dove $r$ indica un'operazione di lettura, $w$ un'operazione di scrittura e $c$ un'operazione di commit.
+Andremo in realtà a fare delle assunzioni per semplificare la trattazione: 
+
+- una transazione è un insieme di operazioni $r[x], w[x]$ che termina unicamente con un comando di commit $c$ o di abort $a$; 
+- non andremo quindi a considerare inserimenti e cancellazioni di record, ma soltanto operazioni di lettura e scrittura su dati esistenti;
+- una transazione può modificare un dato *una singola volta*
+
+
+==== Schedule
+#definition(title: "Schedule")[
+Sia $T = {T_1, T_2, ... T_n}$ un insieme di transazioni. Uno *schedule* (o *history* $H$) di $T$ è un insieme di operazioni tale che: 
+
+- le operazioni di $H$ sono tutte e sole le operazioni in tutte le transazioni di $T$; 
+- $H$ preserva l'ordinamento delle operazioni all'interno di una transazione; 
+]
+Consideriamo il seguente esempio in cui abbiamo tre transazioni: 
+
+- $T_1: r_1[x], w_1[x], w_1[y], c_1$
+
+- $T_2: r_2[y], w_2[y], c_2$
+
+- $T_3: r_3[x], w_3[x], c_3$
+
+Date queste transazioni, un possibile schedule $H_1$ è il seguente: 
+
+#math.equation(block: true, numbering: none, 
+$
+  H_1: r_1[x] space r_2[x] space w_1[x] space r_3[x] space w_3[x] space c_3 space w_2[y] space w_1[y] space c_1 space c_2
+$)
+
+Come già presentato in precedenza, potremmo avere alcuni *conflitti* tra le operazioni di transazioni diverse, e questo è proprio quello che vogliamo evitare. Dunque possiamo definire un *conflitto* come segue.
+
+#definition(title: "Conflitto tra Transazioni")[
+  Date due transazioni $T_i, T_j$ diciamo che sono *in conflitto* se esiste un'operazione $o_i$ di $T_i$ e un'operazione $o_j$ di $T_j$ tale che:
+
+  - $o_i = r_i[x]$ e $o_j = w_j[x]$, noto come *conflitto read-write*;
+  - $o_i = w_i[x]$ e $o_j = w_j[x]$, noto come *conflitto write-write*;
+]
+
+Il motivo per cui abbiamo introdotto la nozione di conflitto, sta nel fatto che, possiamo definire l'*equivalenza* tra due schedule rispetto alla presenza di conflitti. 
+
+#definition(title: "Equivalenza di schedule")[
+  Dati due schedule $H, L$, questi sono *equivalenti* rispetto alle operazioni in conflitto se: 
+
+  - $H$ e $L$ sono definiti sullo stesso insieme di transazioni
+  - $H$ e $L$ condividono lo stesso ordine per tutte le coppie di operazioni in conflitto, tenendo in considerazione soltanto transazioni che raggiungono un commit
+]
+
+
+Per vedere un esempio di come questa equivalenza tra schedule funzioni possiamo fare riferimento a @fig_11_07_equivalence. 
+
+
+#figure(
+  image("/assets/11_07_equivalence.png"), 
+  caption: [Esempio di uno schedule $H_2$ equivalente ad $H_1$ e di uno schedule $H_3$ non equivalente ad $H_1$]
+)<fig_11_07_equivalence>
+
+==== Serializzabilità e C-Serializzabilità
+
+Dato lo schedule $H_1$ mostrato in @fig_11_07_equivalence, possiamo osservare che è possibile ottenere uno *schedule seriale* equivalente ad $H_1$ rispetto ai conflitti. Basterà semplicemente eseguire prima $T_2$, poi $T_1$, e infine $T_3$.
+
+Uno schedule è *seriale* se rappresenta un'esecuzione in cui le operazioni di ogni transazione sono eseguite in sequenza, senza interlacciamento con le operazioni di altre transazioni. In altre parole, uno schedule è seriale se tutte le operazioni di una transazione vengono eseguite prima che inizi la successiva.
+
+
+#definition(title: "C-Serializzabilità")[
+  Uno schedule $H$ è detto *c-serializzabile* se esiste uno *schedule seriale* $L$ tale che $H$ e $L$ sono equivalenti rispetto alle operazioni in conflitto.
+]
+
+#remark[
+  Si può dimostrare che ogni schedule *c-serializzabile* è anche *serializzabile*, ma non viceversa. In altre parole, la c-serializzabilità è una condizione più restrittiva rispetto alla serializzabilità, e garantisce che lo schedule sia equivalente ad uno schedule seriale rispetto alle operazioni in conflitto.
+]
+
+Il motivo per cui abbiamo introdotto tutta questa parte di teoria di serializzabilità sta nel fatto che verrà utilizzata per dimostrare che l'algoritmo che illustreremo per la gestione della concorrenza garantisce che lo schedule risultante sia c-serializzabile, e dunque serializzabile.
+
+===== Grafo di Precedenza
+Nonostante abbiamo dato una definizione formale di c-serializzabilità, non abbiamo ancora mostrato un modo efficace per verificare se uno schedule è c-serializzabile. Per fare questo possiamo utilizzare un *grafo di precedenza*. 
+
+#definition(title: "Grafo di Precedenza")[
+  Dato uno schedule $H$ su un insieme di transazioni $T = {T_1, T_2, ..., T_n}$, il grafo di precedenza $"SG"(H)$ è un *grafo diretto* nel quale i nodi rappresentano le transazioni di $H$ che sono state committate, e ogni arco $(T_i, T_j)$ indica che esiste _almeno un'operazione_ di $T_i$ che *precede* ed è in *conflitto* con un'operazione di $T_j$. 
+]
+
+#figure(
+  grid(
+    columns: 2, 
+    align: horizon,
+    column-gutter: -20%,
+    image("../assets/11_08_1_schedule.png", width: 60%),
+    image("../assets/11_08_2_graph.png", width: 60%),
+  ),
+  caption: [Esempio di grafo di precedenza dato uno schedule $H$]
+)<fig_11_08_precedence_graph>
+
+#theorem(title: "Teorema di Serializzabilità")[
+  Uno schedule $H$ è *c-serializzabile* se e solo se il grafo di precedenza $"SG"(H)$ è *aciclico*. 
+]
+
+Chiaramente, il grafo di precedenza ottenuto in @fig_11_08_precedence_graph non è aciclico, dunque lo schedule mostrato è c-serializzabile.
+
+#remark[
+  Sebbene questo teorema sembri particolarmente utile, in realtà ci permette soltanto di *verificare* se uno schedule è c-serializzabile, ma non ci dice nulla su *come* garantire che lo schedule risultante dall'esecuzione di più transazioni lo sia. 
+]
+
+Andremo ad utilizzare questo teorema in seguito per dimostrare che l'algoritmo di locking che andremo a presentare garantisce che lo schedule risultante sia c-serializzabile.
+
+=== Controllo della Concorrenza tramite Locking
+Per garantire che l'esecuzione concorrente di più transazioni sia serializzabile, è necessario adottare un meccanismo di *controllo della concorrenza*. Tipicamente questo avviene tramite l'utilizzo di *lock* sui dati. 
+
+Tutte le informazioni riguardanti i lock attivi sono mantenute internamente ad un *lock manager*, il quale si occupa di gestire le richieste di lock da parte delle transazioni e di rilasciare i lock quando non sono più necessari. Di seguito mostriamo i tipi di informazioni mantenute dal lock manager per ogni lock:
+
+- `XID`: identificatore della transazione che possiede il lock;
+- `OID`: identificatore dell'oggetto (record, pagina, tabella, ecc.) su cui è applicato il lock;
+- `Mode`: modalità del lock (ad esempio, shared o exclusive);
+
+Nonostante questa sia una visione semplificata del lock manager, essa è sufficiente per comprendere il funzionamento di base del controllo della concorrenza tramite locking. In particolare è importante sottolineare la *modalità* del lock, la quale determina il tipo di operazioni che possono essere eseguite sull'oggetto bloccato.
+
+Ciò che accade quando una transazione richiede un lock è che il lock manager verifica se il lock può essere concesso in base alla modalità richiesta e ai lock già presenti sull'oggetto. Se il lock può essere concesso, viene aggiunto alla lista dei lock attivi; altrimenti, la transazione viene messa in attesa fino a quando il lock non può essere concesso.
+
+==== Locking a Due Fasi
+Esistono diversi algoritmi di scheduling delle transazioni per garantire serializzabilità, uno dei più comuni è il *Two-Phase Locking* (2PL) che utilizza le seguenti regole: 
+
+- se una transazione $T$ vuole leggere un oggetto $X$ deve prima acquisire uno *shared lock*. Se serve scrivere è necessario acquisire un *exclusive lock*;
+
+- diverse transazioni non hanno mai lock in confitto, ossia non può esistere una situazione in cui due transazioni abbiano un lock su un oggetto, uno dei quali è in modalità exclusive; 
+
+- tutti i lock acquisiti da una transazione devono essere rilasciati soltanto dopo che la transazione ha emesso un comando di commit
+
+#theorem[
+  Dato uno schedule compatibile con two phase locking, questo è anche *c-serializzabile*.
+]
+
+È importante ricordare che non vale il viceversa di questo teorema, ossia, non tutti gli schedule c-serializzabili sono compatibili con two phase locking.
+
+#remark[
+  È molto importante che un oggetto non venga rilasciato prima del commit della transazione, se così non fosse, potremmo avere situazioni di inconsistenza dei dati. 
+  Per esempio se $T_1$ rilascia un lock su un oggetto $X$ prima del commit, e $T_2$ acquisisce un lock su $X$ e lo modifica, se poi $T_1$ abortisce, il valore di $X$ sarà inconsistente rispetto a quello che $T_1$ si aspettava.
+]
+
+==== Deadlocking
+Per quanto il two-phase locking sia semplice, lo scheduler ha bisogno anche di un meccanismo per gestire situazioni di *deadlock*. Il motivo per cui un deadlock si verifica è che per esempio una transazione è in attesa di un lock detenuto da un'altra transazione, la quale a sua volta è in attesa di un lock detenuto dalla prima transazione. In questo modo nessuna delle due transazioni può procedere, e si crea una situazione di stallo.
+
+Questo problema si può indirizzare tramite tecniche di *prevenzione dei deadlock* o *rilevamento dei deadlock* associate a politiche di *risoluzione dei deadlock*. 
+
+===== Rilevamento dei Deadlock
+Per rilevare situazioni di deadlock, il lock manager può mantenere un *grafo di attesa* in cui i nodi rappresentano le _transazioni attive_ e gli archi rappresentano le _dipendenze_ tra le transazioni. In particolare, un arco $(T_i, T_j)$. 
+
+Un deadlock si verifica se e solo se esiste un *ciclo* nel grafo di attesa. Per rilevare cicli, il lock manager può eseguire periodicamente un algoritmo di rilevamento dei cicli sul grafo di attesa.
+
+Per risolvere un deadlock, il lock manager può scegliere una delle transazioni coinvolte nel ciclo e forzarne l'aborto. In questo modo, i lock detenuti dalla transazione abortita vengono rilasciati, permettendo alle altre transazioni di procedere.
+
+Possiamo notare come il modulo di gestione delle *transazioni* sia fondamentale in questo caso, in quanto una volta che una transazione verrà abortita, sarà sua responsabilità quella di annullare tutte le operazioni svolte fino a quel momento dalla transazione in questione.
+
+===== Prevenzione dei Deadlock 
+Un approccio alternativo a quello precedente è quello di prevenire i lock prima che questi si verifichino. A questo scopo possiamo andare ad agire nel momento in cui una transazione richiede un lock.
+
+Se una certa transazione $T_i$ richiede un lock su un oggetto $X$ in conflitto con una transazione $T_j$, possiamo adottare due possibili strategie:
+
+- *wait-die* (no-preemption): se $T_i$ è più vecchia di $T_j$ allora $T_i$ viene messa in attesa; altrimenti $T_i$ viene abortita e successivamente riavviata con la stessa timestamp. Il motivo per cui questa strategia funziona sta nel fatto che una transazione più vecchia non può mai essere in attesa di una transazione più giovane, evitando così cicli nel grafo di attesa.
+
+- *wound-wait* (preemption): se $T_i$ è più vecchia di $T_j$ allora $T_i$ provoca l'aborto di $T_j$, altrimenti $T_i$ viene messa in attesa. Anche in questo caso, questa strategia evita cicli nel grafo di attesa.
+
+=== Implementazione del Gestore della Concorrenza
+Dopo aver presentato tutti i componenti teorici necessari, è il momento di illustrare come il *serializzatore* possa essere implementato all'interno di un DBMS.
+
+Sappiamo che ogni transazione può dialogare con il gestore dei lock tramite le seguenti interfacce: 
+
+- `lock(XID, OID, Mode)`: richiede un lock sull'oggetto `OID` in modalità `Mode` per la transazione `XID`;
+
+- `unlock(XID, OID)`: rilascia il lock sull'oggetto `OID` per la transazione `XID`;
+
+- `unlockAll(XID)`: rilascia tutti i lock detenuti dalla transazione `XID`;
+
+La *tabella dei lock* viene gestita come una hash table con i seguenti campi: 
+
+- `OID`: identificatore dell'oggetto bloccato;
+- `LockList`: lista dei lock attivi sull'oggetto, con i relativi `XID` e `Mode`;
+- `WaitList`: lista delle transazioni in attesa di un lock sull'oggetto (con i relativi `XID` e `Mode`);
+
+==== Granularità dei Lock
+Il primo problema che incontriamo nel momento in cui andiamo a implementare il gestore della concorrenza è quello di *stabilire quali oggetti* debbano essere bloccati. Possiamo infatti decidere a quale livello di granularità applicare i lock: campi, record, pagine, file, database interi. 
+
+Ovviamente più è fine la granularità, maggiore sarà la concorrenza possibile, ma allo stesso tempo aumenterà il numero di lock da gestire, con conseguente overhead in termini di memoria e tempo di gestione.
+
+==== Regolamento per i Lock
+Di seguito mostriamo in maniera dettagliata il funzionamento delle regole tramite le quali i lock sono assegnati ad una transazione che ne fa richiesta.
+
+Al pervenire di una richiesta di lock `lock(XID, OID, M)`, si fa una prima distinzione in base alla modalità della richiesta `M`: 
+
+- se `M` è di tipo *exclusive* (X): si controlla semplicemente se esistono altri lock attivi sull'oggetto `OID`, in caso affermativo si mette in attesa la transazione `XID` aggiungendola alla `WaitList`; altrimenti si concede il lock aggiungendo un nuovo record alla `LockList`;
+
+- se `M` è di tipo *shared* (S): in primo luogo controlliamo che la coda di attesa per `OID` sia vuota, se non è vuota procediamo subito con il mettere la transazione in attesa, dal momento significa che altre transazioni stanno aspettando un lock (dovuto al fatto che una transazione esclusiva sta già usando l'oggetto). Se la coda di attesa è vuota procediamo come segue: 
+
+  - se non esistono lock attivi sull'oggetto `OID`, allora si concede il lock aggiungendo un nuovo record alla `LockList`;
+
+  - se esistono lock attivi sull'oggetto `OID`, si controlla la modalità di questi lock: se sono tutti di tipo *shared* allora si concede il lock aggiungendo un nuovo record alla `LockList`; altrimenti (ossia, se esiste almeno un lock di tipo *exclusive*), si mette in attesa la transazione `XID` aggiungendola alla `WaitList`.
+
+==== Rilascio di un Lock
+Nel momento in cui una transazione `XID` rilascia un lock è necessario svolgere le seguenti operazioni: 
+
+- viene aggiornata la `LockList` rimuovendo il record corrispondente a `XID` e `OID`
+- si considera il primo record nella `WaitList` per `OID`, se esiste, e si procede come segue: 
+
+  - se il record può essere riattivato, viene aggiunto alla `LockList` e rimosso dalla `WaitList`
+
+  - in caso contrario si prosegue in ordine lungo la `WaitList` fino a quando non si trova un record che può essere riattivato o fino a quando la lista non è terminata.
+
+#remark[
+  Affinché sia garantito il corretto funzionamento di questo meccanismo è necessario che le operazioni di locking e unlocking siano eseguite in modo *atomico*
+]
+
+
+=== Concorrenza in Sistemi Reali
+Nell'ultima sezione di questo capitolo andiamo a mostrare quali sono invece le sfide che si incontrano quando si cerca di implementare un gestore della concorrenza in un sistema reale.
+
+Per prima cosa, gli oggetti possono essere di differenti dimensioni (*diversi livelli di granularità*), dunque vorremmo un meccanismo per riuscire a gestire lock a diversi livelli per aumentare il grado di concorrenza. 
+
+Per prima cosa è importante capire quale sia la *gerarchia degli oggetti* all'interno di un DBMS:
+
+- Database: l'intera base di dati; 
+- File: un file all'interno del database che contiene pagine di dati;
+- Page: una singola pagina di dati all'interno di un file;
+- Record: un singolo record all'interno di una pagina;
+- Field: un singolo campo all'interno di un record;
+
+Oltre alla questione della granularità dei dati, ne è presente un'altra, che riguarda il fatto che oltre a operazioni di scrittura e lettura esistono anche *inserimenti* e *cancellazioni* di dati. 
+
+==== Locking Multi-granularità
+Andiamo a vedere come sia possibile implementare un meccanismo di locking secondo più (2) livelli di granularità. Per questo definiamo due livelli di granularità: 
+
+- _granularità alta_: più concorrenza, più overhead, siamo in grado di bloccare oggetti più piccoli (ad esempio, record o pagine);
+- _granularità bassa_: meno concorrenza, meno overhead, siamo in grado di bloccare oggetti più grandi (ad esempio, file o database interi);
+
+Come regola generale, ogni volta che otteniamo un lock su un oggetto, otteniamo automaticamente un lock tu *tutti* gli oggetti 'figli' di quell'oggetto. Ad esempio, se otteniamo un lock su una pagina, otteniamo automaticamente un lock su tutti i record all'interno di quella pagina.
+
+Per effettuare un lock su una parte di un oggetto, è necessario ottenere un *intention lock*: 
+
+- `IS`: intention shared lock, indica l'intenzione di ottenere un lock shared su una *parte di oggetto*;
+- `IX`: intention exclusive lock, indica l'intenzione di ottenere un lock exclusive su una *parte di oggetto*;
+- `SIX`: shared intention exclusive lock, indica l'intenzione di ottenere un lock shared su un oggetto e un lock exclusive su una *parte di oggetto*;
+
+Possiamo nuovamente ragionare in termini di compatibilità trai lock e definire una matrice di compatibilità per i lock multi-granularità.
+
+
+#align(center)[
+  #table(
+    columns: (auto, auto, auto, auto, auto, auto),
+    inset: 5pt,
+    align: center,
+    table.header(
+      [], [*SIX*], [*IS*], [*IX*], [*S*], [*X*]
+    ),
+    [*SIX*], [✗], [✓], [✗], [✗], [✗],
+    [*IS*], [✓], [✓], [✓], [✓], [✗],
+    [*IX*], [✗], [✓], [✓], [✗], [✗],
+    [*S*],  [✗], [✓], [✗], [✓], [✗],
+    [*X*],  [✗], [✗], [✗], [✗], [✗],
+  )
+]
+
